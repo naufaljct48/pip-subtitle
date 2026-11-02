@@ -1,5 +1,23 @@
 # PiP Subtitle
 
+*English below is a short summary; the full guide follows in Indonesian.*
+
+## English
+
+A Chrome extension that opens a video in Picture-in-Picture **with its subtitles**. Works with common players such as Shaka, JW Player, Video.js, Plyr, YouTube and more.
+
+**Install:** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this folder.
+
+**Use:** press **Alt+P** on a page with a video, or click the extension icon and then **Open PiP**. The popup also has:
+
+- **Display mode** — **Clean** (default): a plain PiP window without a title bar, subtitles drawn on the video, time and progress shown while paused; Chrome's skip buttons jump 15 s. **Full**: a PiP window with a mini player (seek bar, ±15 s, click the time to type one, volume) and text size / `.srt` buttons; Chrome always shows the site name on top of this window.
+- **Auto PiP when switching tabs** — Chrome only fires it for sites you often watch with sound (see `chrome://media-engagement`).
+- **Show subtitles** (turns on the player's CC if it is off), **Text size**, **Volume** of the video in the tab, and **Language** (Auto / EN / ID; Auto follows the browser language).
+
+Keys in the Full window: Space/K play/pause, ←/→ 5 s, J/L 15 s, ↑/↓ volume, Esc or Alt+P close.
+
+## Bahasa Indonesia
+
 Ekstensi Chrome yang membuka video dalam Picture-in-Picture **beserta subtitle-nya**. Bekerja dengan player umum seperti Shaka, JW Player, Video.js, Plyr, YouTube, dan lain-lain.
 
 ## Pasang
@@ -20,6 +38,7 @@ Popup ekstensi juga berisi pengaturan (berlaku langsung, tanpa muat ulang halama
 - **PiP otomatis saat pindah tab** — video yang sedang main langsung masuk PiP ketika kamu pindah tab.
 - **Tampilkan subtitle** — tampilkan/sembunyikan subtitle. Bila CC di player belum aktif, ekstensi menyalakannya sekali saat PiP dibuka (YouTube, JW Player, atau track subtitle bawaan video; Bahasa Indonesia didahulukan). Ekstensi tidak pernah mematikan CC di player.
 - **Ukuran teks** — 60–200%.
+- **Bahasa** — Auto / EN / ID; Auto mengikuti bahasa browser (Indonesia bila browser berbahasa Indonesia, selain itu Inggris).
 - **Volume** — volume video di tab ini (0–100%). Jendela PiP mode Bersih dari Chrome tidak punya penggeser volume, jadi atur dari sini; tombol speaker di jendela Bersih ikut membisukan/menyalakan suara video.
 
 Di jendela PiP mode **Bersih**, waktu dan garis kemajuan muncul di bagian bawah video saat video dijeda atau sebentar sesudah kamu memutar/menjeda/menggeser. Tombol maju/mundur Chrome melompat 15 detik.

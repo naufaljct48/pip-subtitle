@@ -32,13 +32,13 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     await page.triggerExtensionAction((await browser.extensions()).get(extId));
     const pop = await (await browser.waitForTarget((t) => t.url().includes(extId) && t.url().endsWith('popup.html'))).asPage();
     await sleep(800);
-    for (const b of await pop.$$('button')) { if ((await b.evaluate((n) => n.textContent.trim())) === 'Bersih') { await b.click(); break; } }
+    await pop.click('button[data-mode="clean"]'); // by attribute: popup text follows the language
     const range = await pop.$('input[type="range"]');
     log('popup volume before', await pop.evaluate((r) => [r.value, r.disabled, r.parentElement.innerText.replace(/\s+/g, ' ')], range));
     await range.evaluate((r) => { r.value = '30'; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); });
     await sleep(800);
     result.volume = await page.evaluate(() => document.querySelector('video').volume);
-    for (const b of await pop.$$('button')) { if ((await b.evaluate((n) => n.textContent)).includes('Buka PiP')) { await b.click(); break; } }
+    await pop.click('#open');
     await sleep(3500);
     Object.assign(result, await page.evaluate(() => ({
       pip: document.pictureInPictureElement === document.querySelector('video[data-pipsub]') && !!document.pictureInPictureElement,

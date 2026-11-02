@@ -1,12 +1,10 @@
 // Popup: opens PiP in the active tab and edits the settings content.js reads from storage.
 'use strict';
 
-const NO_VIDEO = 'Tidak ada video yang bisa di-PiP di tab ini.';
-const MODE_HINTS = {
-  clean: 'Tanpa bilah judul. Subtitle digambar di video.',
-  full: 'Ada tombol ukuran teks & muat .srt. Chrome menampilkan nama situs di atas.',
-};
-const DEFAULTS = { fontScale: 1, ccOn: true, mode: 'clean', autoPip: true };
+// Strings come from i18n.js (loaded first): T(key) in the language the setting resolves to.
+const T = (key) => (PIPSUB_STRINGS[pipsubLang(state.lang)] || PIPSUB_STRINGS.en)[key] || key;
+const MODE_HINT_KEYS = { clean: 'hintClean', full: 'hintFull' };
+const DEFAULTS = { fontScale: 1, ccOn: true, mode: 'clean', autoPip: true, lang: 'auto' };
 const SCALE_MIN = 0.6;
 const SCALE_MAX = 2.0;
 
@@ -17,6 +15,7 @@ const hasScripting = hasChrome && !!chrome.tabs && !!chrome.scripting;
 const $ = (id) => document.getElementById(id);
 const openBtn = $('open');
 const modeButtons = [...document.querySelectorAll('[data-mode]')];
+const langButtons = [...document.querySelectorAll('[data-lang]')];
 const autoSwitch = $('auto');
 const ccSwitch = $('cc');
 const msg = $('msg');
@@ -32,12 +31,25 @@ function normalize(s) {
     ccOn: v.ccOn !== false,
     mode: v.mode === 'full' ? 'full' : 'clean',
     autoPip: v.autoPip !== false,
+    lang: v.lang === 'en' || v.lang === 'id' ? v.lang : 'auto',
   };
 }
 
+// Static copy (data-i18n → text, data-i18n-aria → aria-label) in the current language.
+let messageKey = '';
+function renderText() {
+  document.documentElement.lang = pipsubLang(state.lang);
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = T(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', T(el.dataset.i18nAria));
+  if (messageKey) msg.textContent = T(messageKey);
+  if (volRange && volRange.disabled) volLabel.textContent = T('volumeNone');
+}
+
 function render() {
+  renderText();
   for (const b of modeButtons) b.setAttribute('aria-checked', String(b.dataset.mode === state.mode));
-  $('mode-hint').textContent = MODE_HINTS[state.mode];
+  for (const b of langButtons) b.setAttribute('aria-checked', String(b.dataset.lang === state.lang));
+  $('mode-hint').textContent = T(MODE_HINT_KEYS[state.mode]);
   autoSwitch.setAttribute('aria-checked', String(state.autoPip));
   ccSwitch.setAttribute('aria-checked', String(state.ccOn));
   $('size').textContent = Math.round(state.fontScale * 100) + '%';
@@ -56,9 +68,11 @@ function update(patch) {
   });
 }
 
-function showMessage(text) {
-  msg.textContent = text;
-  msg.hidden = !text;
+// key '' hides the message; kept as a key so a language change re-renders it.
+function showMessage(key) {
+  messageKey = key;
+  msg.textContent = key ? T(key) : '';
+  msg.hidden = !key;
 }
 
 // Runs in the tab's top frame. It wins when it has the main video; a visible iframe bigger
@@ -82,7 +96,7 @@ function topFrameWins(doToggle) {
   return true;
 }
 
-// The frame "Buka PiP" acts on: top frame first, else the best-scoring frame.
+// The frame "Open PiP" acts on: top frame first, else the best-scoring frame.
 // executeScript (not tabs.sendMessage) keeps the click's user activation, which PiP needs.
 async function pickFrame(doToggle) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -120,7 +134,7 @@ async function pickFrame(doToggle) {
 
 openBtn.addEventListener('click', async () => {
   showMessage('');
-  if (!hasScripting) { showMessage(NO_VIDEO); return; }
+  if (!hasScripting) { showMessage('noVideoTab'); return; }
   openBtn.disabled = true;
   let opened = false;
   try {
@@ -131,11 +145,11 @@ openBtn.addEventListener('click', async () => {
   }
   openBtn.disabled = false;
   if (opened) window.close();
-  else showMessage(NO_VIDEO);
+  else showMessage('noVideoTab');
 });
 
 // Volume: the page video's own volume (not a setting), read from and written to the same
-// frame "Buka PiP" would use. One executeScript in flight; the latest value wins.
+// frame "Open PiP" would use. One executeScript in flight; the latest value wins.
 const volRange = $('volume');
 const volLabel = $('volume-value');
 let volFrame = null;
@@ -146,7 +160,7 @@ function renderVolume(v) {
   const ok = !!v;
   volRange.disabled = !ok;
   volRange.closest('.volume').classList.toggle('disabled', !ok);
-  if (!ok) { volLabel.textContent = '—'; return; }
+  if (!ok) { volLabel.textContent = T('volumeNone'); return; }
   const pct = v.muted ? 0 : Math.round(v.volume * 100);
   volRange.value = String(pct);
   volLabel.textContent = pct + '%';
@@ -193,14 +207,23 @@ async function loadVolume() {
 for (const b of modeButtons) {
   b.addEventListener('click', () => update({ mode: b.dataset.mode }));
 }
-// Arrow keys move between the two segments, as in a radio group.
-document.querySelector('.segmented').addEventListener('keydown', (e) => {
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-  e.preventDefault();
-  const next = state.mode === 'clean' ? 'full' : 'clean';
-  update({ mode: next });
-  modeButtons.find((b) => b.dataset.mode === next).focus();
-});
+for (const b of langButtons) {
+  b.addEventListener('click', () => update({ lang: b.dataset.lang }));
+}
+// Arrow keys move between segments, as in a radio group.
+function radioKeys(buttons, key) {
+  buttons[0].parentElement.addEventListener('keydown', (e) => {
+    const dir = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    const i = buttons.findIndex((b) => b.dataset[key] === state[key]);
+    const next = buttons[(i + dir + buttons.length) % buttons.length];
+    update({ [key]: next.dataset[key] });
+    next.focus();
+  });
+}
+radioKeys(modeButtons, 'mode');
+radioKeys(langButtons, 'lang');
 autoSwitch.addEventListener('click', () => update({ autoPip: !state.autoPip }));
 ccSwitch.addEventListener('click', () => update({ ccOn: !state.ccOn }));
 $('smaller').addEventListener('click', () => update({ fontScale: state.fontScale - 0.1 }));

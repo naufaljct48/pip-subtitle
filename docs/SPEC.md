@@ -25,18 +25,21 @@ native text tracks, so the captions are lost.
 ## Architecture
 ```
 manifest.json      MV3; permissions: scripting, storage; host_permissions <all_urls>;
-                   action.default_popup popup.html
-popup.html/.js     action popup: "Buka PiP" (frame picking + toggle) and settings
+                   action.default_popup popup.html; default_locale en, name/description/title
+                   via __MSG_*__ (_locales/en, _locales/id)
+i18n.js            UI strings (en, id) + pipsubLang(); loaded before content.js and popup.js
+popup.html/.js     action popup: "Open PiP" (frame picking + toggle) and settings
 content.js         all frames, document_idle: everything else (single file, IIFE, no deps)
 icons/             16/48/128 PNG
 ```
 
 ### Settings
 `chrome.storage.local` key `pipsub`: `{ fontScale: 0.6–2.0 (1), ccOn (true),
-mode: 'clean' | 'full' ('clean'), autoPip (true) }`. Writers merge into the stored object.
+mode: 'clean' | 'full' ('clean'), autoPip (true), lang: 'auto' | 'en' | 'id' ('auto') }`.
+Writers merge into the stored object.
 content.js loads it at start and listens to `chrome.storage.onChanged`: the canvas picks up
 `fontScale`/`ccOn` on its next frame, an open Document PiP window re-syncs its toolbar and
-overlay, and auto PiP re-registers. Without `chrome.storage` (script injected for testing)
+overlay (including its tooltips/labels when `lang` changes), and auto PiP re-registers. Without `chrome.storage` (script injected for testing)
 the in-memory defaults apply.
 
 ### Trigger
@@ -242,6 +245,16 @@ label "—". The Bersih window (native video PiP) has no volume control of its o
 Switches are `<button role="switch" aria-checked>` (36×20, accent when on); focus-visible ring
 in the accent color; no external fonts or scripts. Without `chrome.*` (opened as a plain page)
 it renders with the defaults. Changes are written to storage immediately.
+
+### Language
+Every user-visible string is in `i18n.js` (`PIPSUB_STRINGS.en` / `.id`, same keys); content.js and
+the popup look strings up by key and re-render when `lang` changes. `pipsubLang('auto')` → `id`
+when `navigator.language` starts with `id` or `in`, else `en`. The offset label uses "." in
+English and "," in Indonesian. Popup: last row "Language"/"Bahasa" with a 28 px segmented control
+"Auto" | "EN" | "ID"; `<html lang>` follows the resolved language (also in the Document PiP
+window). content.js injected without i18n.js (tests) shows the keys. The extension name stays
+"PiP Subtitle" in both locales. English copy is in `i18n.js`; the Indonesian copy below is
+unchanged.
 
 ## Copy (Indonesian)
 - "Tidak ada video yang bisa di-PiP di halaman ini."

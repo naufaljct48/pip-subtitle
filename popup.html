@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>PiP Subtitle</title>
@@ -53,6 +53,8 @@
     color: var(--accent); font-weight: 600;
     background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
+  .segmented.small { grid-template-columns: repeat(3, 1fr); width: 132px; height: 28px; }
+  .segmented.small button { font-size: 12px; }
   .hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 
   .rows { margin-top: 12px; border-top: 1px solid var(--border); }
@@ -101,13 +103,13 @@
     <h1>PiP Subtitle</h1>
   </div>
 
-  <button type="button" class="primary" id="open">Buka PiP<kbd>Alt+P</kbd></button>
+  <button type="button" class="primary" id="open"><span data-i18n="openPip"></span><kbd>Alt+P</kbd></button>
 
   <div class="section">
-    <p class="section-label" id="mode-label">Mode tampilan</p>
+    <p class="section-label" id="mode-label" data-i18n="modeLabel"></p>
     <div class="segmented" role="radiogroup" aria-labelledby="mode-label">
-      <button type="button" role="radio" data-mode="clean" aria-checked="true">Bersih</button>
-      <button type="button" role="radio" data-mode="full" aria-checked="false">Lengkap</button>
+      <button type="button" role="radio" data-mode="clean" aria-checked="true" data-i18n="modeClean"></button>
+      <button type="button" role="radio" data-mode="full" aria-checked="false" data-i18n="modeFull"></button>
     </div>
     <p class="hint" id="mode-hint"></p>
   </div>
@@ -115,37 +117,46 @@
   <div class="rows">
     <div class="row">
       <div>
-        <div id="auto-label">PiP otomatis saat pindah tab</div>
-        <p class="hint">Video harus main &amp; bersuara, di situs yang sering kamu tonton. <a href="#" id="mei-link">Cek skor</a></p>
+        <div id="auto-label" data-i18n="autoLabel"></div>
+        <p class="hint"><span data-i18n="autoHint"></span> <a href="#" id="mei-link" data-i18n="checkScore"></a></p>
       </div>
       <button type="button" class="switch" id="auto" role="switch" aria-checked="true" aria-labelledby="auto-label"></button>
     </div>
     <div class="row">
       <div>
-        <div id="cc-label">Tampilkan subtitle</div>
-        <p class="hint">Menyalakan CC di player bila belum aktif.</p>
+        <div id="cc-label" data-i18n="ccLabel"></div>
+        <p class="hint" data-i18n="ccHint"></p>
       </div>
       <button type="button" class="switch" id="cc" role="switch" aria-checked="true" aria-labelledby="cc-label"></button>
     </div>
     <div class="row">
-      <div id="size-label">Ukuran teks</div>
+      <div id="size-label" data-i18n="sizeLabel"></div>
       <div class="stepper" role="group" aria-labelledby="size-label">
-        <button type="button" id="smaller" aria-label="Perkecil teks">−</button>
+        <button type="button" id="smaller" data-i18n-aria="smaller">−</button>
         <output id="size" aria-live="polite">100%</output>
-        <button type="button" id="bigger" aria-label="Perbesar teks">+</button>
+        <button type="button" id="bigger" data-i18n-aria="bigger">+</button>
       </div>
     </div>
     <div class="row">
-      <label for="volume" id="volume-label">Volume</label>
+      <label for="volume" id="volume-label" data-i18n="volumeLabel"></label>
       <div class="volume disabled">
         <input type="range" id="volume" min="0" max="100" step="5" value="100" disabled>
-        <output id="volume-value" for="volume">—</output>
+        <output id="volume-value" for="volume"></output>
+      </div>
+    </div>
+    <div class="row">
+      <div id="lang-label" data-i18n="langLabel"></div>
+      <div class="segmented small" role="radiogroup" aria-labelledby="lang-label">
+        <button type="button" role="radio" data-lang="auto" aria-checked="true" data-i18n="langAuto"></button>
+        <button type="button" role="radio" data-lang="en" aria-checked="false" lang="en">EN</button>
+        <button type="button" role="radio" data-lang="id" aria-checked="false" lang="id">ID</button>
       </div>
     </div>
   </div>
 
   <p class="msg" id="msg" role="status" hidden></p>
 
+  <script src="i18n.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

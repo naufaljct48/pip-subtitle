@@ -56,15 +56,13 @@ const PROXY_STATS = `(() => {
     const popT = await browser.waitForTarget((t) => t.url().includes(extId) && t.url().endsWith('popup.html'), { timeout: 5000 });
     const pop = await popT.asPage();
     await sleep(500);
-    const want = mode === 'full' ? 'Lengkap' : 'Bersih';
-    const segs = await pop.$$('button');
-    for (const b of segs) { if ((await b.evaluate((n) => n.textContent.trim())) === want) { await b.click(); break; } }
+    // By attribute: popup text follows the language setting.
+    await pop.click(`button[data-mode="${mode === 'full' ? 'full' : 'clean'}"]`);
     await sleep(300);
     log('popup state', await pop.evaluate(() => document.body.innerText.replace(/\s+/g, ' ').slice(0, 200)));
     if (mode === 'clean') {
-      const btns = await pop.$$('button');
-      for (const b of btns) { if ((await b.evaluate((n) => n.textContent)).includes('Buka PiP')) { await b.click(); break; } }
-      log('clicked Buka PiP in popup');
+      await pop.click('#open');
+      log('clicked open in popup');
     } else {
       await pop.close().catch(() => {});
       await page.bringToFront();

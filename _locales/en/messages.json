@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "PiP Subtitle",
+    "description": "Extension name (same in every language)."
+  },
+  "extDescription": {
+    "message": "Picture-in-Picture that keeps the player's subtitles (Shaka, JW Player, Video.js, Plyr, and more).",
+    "description": "Chrome Web Store / extensions page description."
+  },
+  "actionTitle": {
+    "message": "PiP + Subtitle (Alt+P)",
+    "description": "Toolbar button tooltip."
+  }
+}

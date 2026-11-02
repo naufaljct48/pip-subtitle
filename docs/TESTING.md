@@ -6,6 +6,8 @@ Set `PUPPETEER_CORE` if puppeteer-core lives elsewhere.
 
 ```bash
 node test/parser-smoke.mjs content.js                      # SRT/VTT parser
+node test/i18n-keys.mjs                                     # en/id keys match, used keys exist, no Indonesian copy in code
+node test/popup-shots.cjs                                   # popup screenshots: test/v14-popup-{en,id}-{light,dark}.png
 # Mode A on a real page (Alt+P; TOOLBAR=1 uses the toolbar action instead)
 PLAY_XY=636,250 node test/e2e.cjs <episode-url> 45          # click play, wait out the ad
 node test/e2e.cjs https://plyr.io/ 0

@@ -5,3 +5,4 @@ test/e2e-profile/
 test/*.png
 test/v11-*
 test/v13-*
+test/v14-*

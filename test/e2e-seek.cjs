@@ -37,14 +37,16 @@ async function altP(page) {
   let failed = false;
   try {
     const extId = await browser.installExtension(path.resolve(__dirname, '..'));
-    const setMode = async (mode) => {
+    // Writes settings the way the popup does (merged into the stored object).
+    const setPref = async (patch) => {
       const p = await browser.newPage();
       await p.goto(`chrome-extension://${extId}/popup.html`);
       await p.evaluate((m) => new Promise((res) => chrome.storage.local.get('pipsub', (r) => {
-        chrome.storage.local.set({ pipsub: { ...((r && r.pipsub) || {}), mode: m } }, res);
-      })), mode);
+        chrome.storage.local.set({ pipsub: { ...((r && r.pipsub) || {}), ...m } }, res);
+      })), patch);
       await p.close();
     };
+    const setMode = (mode) => setPref({ mode });
 
     const page = (await browser.pages())[0];
     page.on('console', (m) => { if (/PiP Subtitle/.test(m.text())) log('console', m.text().slice(0, 200)); });
@@ -150,6 +152,23 @@ async function altP(page) {
     results.fullOpened = !!doc && doc.hasSeek && near(doc.max, 60, 0.5);
     results.miniPlayerLayout = !!doc && ['−15', '+15'].every((x, i) => doc.row[i + 1] === x) &&
       doc.row[4] === '|' && doc.row[5] === 'Vol' && doc.row[6] === 'range' && !doc.top.includes('Vol');
+
+    // Language follows the setting live in the open window (titles, offset label, <html lang>).
+    const titles = () => page.evaluate(() => {
+      const d = documentPictureInPicture.window.document;
+      return { lang: d.documentElement.lang, cc: d.querySelector('.bar button:nth-child(3)').title, play: d.querySelector('.ctl .row button').title, seek: d.querySelector('.ctl .seek').getAttribute('aria-label') };
+    });
+    await setPref({ lang: 'en' });
+    await sleep(400);
+    const tEn = await titles();
+    await setPref({ lang: 'id' });
+    await sleep(400);
+    const tId = await titles();
+    await setPref({ lang: 'auto' });
+    await page.bringToFront();
+    log('live language', JSON.stringify({ tEn, tId }));
+    results.liveLanguage = tEn.lang === 'en' && tEn.play === 'Play/Pause (K)' && tEn.seek === 'Video position' &&
+      tId.lang === 'id' && tId.play === 'Putar/jeda (K)' && tId.seek === 'Posisi video';
     await page.evaluate(() => {
       const w = documentPictureInPicture.window;
       const seek = w.document.querySelector('.ctl .seek');

@@ -6,7 +6,8 @@
 | 2 | content.js (both modes, sources, UI) | careful | 1 | done |
 | 3 | v1.1: clean/full modes, popup (replaces background.js), auto PiP, live settings, YouTube style fix, canvas follows video size | careful | 2 | done |
 | 4 | v1.2: volume (popup slider, Lengkap Vol + ↑/↓, getVolume/setVolume), turn on site captions once per session | careful | 3 | done |
-| 5 | v1.3: timeline (Bersih media-session seek + canvas progress, mute mirror; Lengkap mini player), 15 s steps | careful | 4 | review |
+| 5 | v1.3: timeline (Bersih media-session seek + canvas progress, mute mirror; Lengkap mini player), 15 s steps | careful | 4 | done |
+| 6 | v1.4: English + Indonesian UI (i18n.js, lang setting, _locales for the manifest) | careful | 5 | review |
 
 ## 1. Scaffold
 `manifest.json` (MV3, name "PiP Subtitle", version 1.0.0, description in Indonesian,

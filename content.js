@@ -10,31 +10,20 @@
     typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
   const storageOk = () => extAlive() && !!chrome.storage && !!chrome.storage.local;
 
-  const COPY = {
-    noVideo: 'Tidak ada video yang bisa di-PiP di halaman ini.',
-    retry: 'Klik untuk membuka PiP',
-    retryBtn: 'Buka PiP',
-    crossOrigin: 'Subtitle tidak bisa ditampilkan di player ini (video lintas-domain)',
-    smaller: 'Perkecil teks',
-    bigger: 'Perbesar teks',
-    cc: 'Subtitle on/off',
-    loadFile: 'Muat file subtitle (.srt/.vtt)',
-    volume: 'Volume (↑/↓)',
-    back15: 'Mundur 15 detik (J)',
-    playPause: 'Putar/jeda (K)',
-    fwd15: 'Maju 15 detik (L)',
-    seekBar: 'Posisi video',
-    jumpTo: 'Klik untuk lompat ke waktu tertentu',
-    mute: 'Bisukan / nyalakan suara',
-    back: 'Mundurkan subtitle 0,5 detik',
-    fwd: 'Majukan subtitle 0,5 detik',
-    unload: 'Lepas file subtitle',
-  };
+  // UI strings live in i18n.js, loaded first by the manifest. Injected alone (tests), the
+  // script has no strings and shows the keys instead.
+  const STRINGS = typeof PIPSUB_STRINGS !== 'undefined' ? PIPSUB_STRINGS : null;
+  const uiLang = () => (typeof pipsubLang === 'function' ? pipsubLang(settings.lang) : 'en');
+  function T(key) {
+    const table = STRINGS && (STRINGS[uiLang()] || STRINGS.en);
+    return (table && table[key]) || key;
+  }
 
   const SCALE_MIN = 0.6;
   const SCALE_MAX = 2.0;
   // mode: 'clean' = native PiP of a canvas with burned-in subtitles, 'full' = Document PiP.
-  const settings = { fontScale: 1, ccOn: true, mode: 'clean', autoPip: true };
+  // lang: 'auto' | 'en' | 'id' (see pipsubLang in i18n.js).
+  const settings = { fontScale: 1, ccOn: true, mode: 'clean', autoPip: true, lang: 'auto' };
   const settingsListeners = new Set();
 
   function clampScale(v) {
@@ -49,6 +38,7 @@
     settings.ccOn = v.ccOn !== false;
     settings.mode = v.mode === 'full' ? 'full' : 'clean';
     settings.autoPip = v.autoPip !== false;
+    settings.lang = v.lang === 'en' || v.lang === 'id' ? v.lang : 'auto';
     for (const fn of settingsListeners) {
       try { fn(); } catch (err) { console.warn('[PiP Subtitle]', err); }
     }
@@ -514,7 +504,7 @@
     toastTimer = setTimeout(hideToast, 6000);
   }
 
-  const offerRetry = () => toast(COPY.retry, { label: COPY.retryBtn, run: () => toggle() });
+  const offerRetry = () => toast(T('retry'), { label: T('retryBtn'), run: () => toggle() });
 
   // ==== Session state & toggle ====
 
@@ -591,7 +581,7 @@
     if (session) { session.close(); return; }
     if (opening) return;
     const pick = pickVideo();
-    if (!pick) { toast(COPY.noVideo); return; }
+    if (!pick) { toast(T('noVideo')); return; }
     opening = true;
     try {
       await openPip(pick.video);
@@ -661,7 +651,7 @@
     }, 1500);
   }
 
-  // CC switched on (popup, other tab, or the Lengkap toolbar) while a session is open.
+  // CC switched on (popup, other tab, or the Full-mode toolbar) while a session is open.
   settingsListeners.add(() => {
     if (settings.ccOn && session && session.kind !== 'debug') scheduleCaptionsOn(session);
   });
@@ -726,7 +716,8 @@
 
   function formatOffset(o) {
     const sign = o > 0 ? '+' : o < 0 ? '−' : '';
-    return sign + Math.abs(o).toFixed(1).replace('.', ',') + ' s';
+    const n = Math.abs(o).toFixed(1);
+    return sign + (uiLang() === 'id' ? n.replace('.', ',') : n) + ' s';
   }
 
   function buildDocUi(pipWin, video, source, sess) {
@@ -752,11 +743,16 @@
     input.accept = '.srt,.vtt';
     input.hidden = true;
 
+    // [element, attribute, key] for every translated attribute; applyLang() re-labels them.
+    const labelled = [];
+    const label = (el, attr, key) => { labelled.push([el, attr, key]); el.setAttribute(attr, T(key)); };
+    const applyLang = () => { for (const [el, attr, key] of labelled) el.setAttribute(attr, T(key)); };
+
     const bar = make('div', 'bar');
-    const button = (label, title, fn) => {
-      const b = make('button', null, label);
+    const button = (text, titleKey, fn) => {
+      const b = make('button', null, text);
       b.type = 'button';
-      b.title = title;
+      label(b, 'title', titleKey);
       b.tabIndex = -1;
       b.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -766,19 +762,19 @@
       return b;
     };
     const setScale = (v) => { settings.fontScale = clampScale(v); saveSettings(); sync(); };
-    const bSmaller = button('A−', COPY.smaller, () => setScale(settings.fontScale - 0.1));
-    const bBigger = button('A+', COPY.bigger, () => setScale(settings.fontScale + 0.1));
-    const bCC = button('CC', COPY.cc, () => {
+    const bSmaller = button('A−', 'smaller', () => setScale(settings.fontScale - 0.1));
+    const bBigger = button('A+', 'bigger', () => setScale(settings.fontScale + 0.1));
+    const bCC = button('CC', 'cc', () => {
       settings.ccOn = !settings.ccOn;
       saveSettings();
       sync();
       if (settings.ccOn) scheduleCaptionsOn(sess);
     });
-    const bFile = button('.srt', COPY.loadFile, () => input.click());
-    const bBack = button('−0.5s', COPY.back, () => { source.shiftOffset(-0.5); sync(); });
+    const bFile = button('.srt', 'loadFile', () => input.click());
+    const bBack = button('−0.5s', 'back', () => { source.shiftOffset(-0.5); sync(); });
     const lbl = make('span', 'lbl');
-    const bFwd = button('+0.5s', COPY.fwd, () => { source.shiftOffset(0.5); sync(); });
-    const bUnload = button('✕', COPY.unload, () => { source.clearExternal(); sync(); });
+    const bFwd = button('+0.5s', 'fwd', () => { source.shiftOffset(0.5); sync(); });
+    const bUnload = button('✕', 'unload', () => { source.clearExternal(); sync(); });
     bar.append(bSmaller, bBigger, bCC, bFile, bBack, lbl, bFwd, bUnload);
 
     // ---- Bottom mini player: seek bar on top; play, −15, +15, time · spacer · Vol, volume.
@@ -790,7 +786,7 @@
     seekRange.min = '0';
     seekRange.step = 'any';
     seekRange.tabIndex = -1;
-    seekRange.setAttribute('aria-label', COPY.seekBar);
+    label(seekRange, 'aria-label', 'seekBar');
     const tip = make('div', 'tip');
     tip.hidden = true;
     seekWrap.append(seekRange, tip);
@@ -815,18 +811,18 @@
     seekRange.addEventListener('pointerleave', () => { tip.hidden = true; });
 
     const row = make('div', 'row');
-    const bPlay = button('▶', COPY.playPause, () => togglePlay(video));
-    const bBack15 = button('−15', COPY.back15, () => seekBy(video, -SEEK_STEP));
-    const bFwd15 = button('+15', COPY.fwd15, () => seekBy(video, SEEK_STEP));
+    const bPlay = button('▶', 'playPause', () => togglePlay(video));
+    const bBack15 = button('−15', 'back15', () => seekBy(video, -SEEK_STEP));
+    const bFwd15 = button('+15', 'fwd15', () => seekBy(video, SEEK_STEP));
     const timeEl = make('span', 'time');
-    timeEl.title = COPY.jumpTo;
+    label(timeEl, 'title', 'jumpTo');
     timeEl.setAttribute('role', 'button');
     const timeIn = make('input', 'timein');
     timeIn.type = 'text';
     timeIn.hidden = true;
-    timeIn.setAttribute('aria-label', COPY.jumpTo);
+    label(timeIn, 'aria-label', 'jumpTo');
     const spacer = make('span', 'spacer');
-    const bVol = button('Vol', COPY.mute, () => {
+    const bVol = button('Vol', 'mute', () => {
       if (video.muted || video.volume === 0) applyVolume(video, video.volume || 0.5);
       else video.muted = true;
     });
@@ -835,9 +831,9 @@
     volRange.min = '0';
     volRange.max = '100';
     volRange.step = '5';
-    volRange.title = COPY.volume;
+    label(volRange, 'title', 'volume');
     volRange.tabIndex = -1;
-    volRange.setAttribute('aria-label', COPY.volume);
+    label(volRange, 'aria-label', 'volume');
     volRange.addEventListener('input', () => applyVolume(video, Number(volRange.value) / 100));
     volRange.addEventListener('change', () => volRange.blur());
     volRange.addEventListener('click', (e) => e.stopPropagation());
@@ -919,6 +915,8 @@
     }
 
     function sync() {
+      applyLang();
+      doc.documentElement.lang = uiLang();
       doc.documentElement.style.setProperty('--scale', String(settings.fontScale));
       bCC.classList.toggle('off', !settings.ccOn);
       const ext = source.hasExternal();
@@ -1181,7 +1179,7 @@
     } catch (_) { /* not seekable */ }
   }
 
-  // Bersih windows show a MediaStream, which Chrome treats as live (no timeline, no seeking).
+  // Clean-mode windows show a MediaStream, which Chrome treats as live (no timeline, no seeking).
   // The page's media session gives its PiP controls the original's position and seek actions.
   // Only seek actions are registered; play/pause and previous/next stay the page's own.
   function attachTimeline(video) {
@@ -1365,7 +1363,7 @@
     video.addEventListener('leavepictureinpicture', end);
     timeline = attachTimeline(video);
     sess.seekActions = timeline.actions;
-    toast(COPY.crossOrigin);
+    toast(T('crossOrigin'));
     scheduleCaptionsOn(sess);
   }
 

@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "PiP Subtitle",
+    "description": "Nama ekstensi (sama di semua bahasa)."
+  },
+  "extDescription": {
+    "message": "Picture-in-Picture yang ikut menampilkan subtitle player (Shaka, JW Player, Video.js, Plyr, dll).",
+    "description": "Deskripsi di Chrome Web Store / halaman ekstensi."
+  },
+  "actionTitle": {
+    "message": "PiP + Subtitle (Alt+P)",
+    "description": "Tooltip tombol toolbar."
+  }
+}
