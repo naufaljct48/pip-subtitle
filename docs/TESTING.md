@@ -11,8 +11,9 @@ PLAY_XY=636,250 node test/e2e.cjs <episode-url> 45          # click play, wait o
 node test/e2e.cjs https://plyr.io/ 0
 # Mode B: player in a cross-origin iframe
 python -I test/serve_ext.py test/modeb 8766 &               # serves 127.0.0.1 + localhost
-node test/e2e-modeb.cjs                                     # also checks the 640x360 -> 480x480 source switch
+node test/e2e-modeb.cjs                                     # + source resize, setVolume, CC-on (track.html), Lengkap Vol
 node test/e2e-hide.cjs                                      # site pauses on tab switch: PiP must keep playing
+#   needs the Chrome test window visible and uncovered (occluded windows count as hidden)
 # EXT_DIR=<copy of the extension> node test/e2e-hide.cjs    # run against a mutated copy to prove the test fails
 ```
 
@@ -44,3 +45,12 @@ leaves its caption box empty, so captions cannot be verified there.
 | YouTube, mode Lengkap, Shift+N to next video | Alt+P | YouTube rewrites the video's inline size; video stays 0,0 full window; PiP title follows the new video |
 | Fixture `pauseOnHide=1` / `=window` | Alt+P | keeps playing hidden; `window` (page listener before ours) shows one ≤1 s auto-resumed blip by design |
 | Auto PiP on tab switch | — | not triggerable in a fresh automation profile (Chrome gates it on media engagement); verify in a real profile |
+
+### v1.2 (2 Nov 2026, Chrome 156)
+
+| Case | Path | Result |
+|------|------|--------|
+| YouTube, CC switched off first, popup volume 30 %, popup "Buka PiP" (Bersih) — `test/e2e-v12.cjs` | popup | video volume 0.3, YouTube CC turned on by the extension, canvas PiP open |
+| Native tracks all disabled — `test/modeb/track.html` | Alt+P | `id` track set to hidden, caption text read |
+| Auto PiP after building media engagement (plyr.io, 9 sessions with playback, score 0.45, Is High = Yes) | tab switch | canvas PiP opened by Chrome's `enterpictureinpicture`, closed by Chrome on return. Same profile at score 0.05 (Is High = No): nothing — Chrome gates auto PiP on high engagement |
+| e2e-hide | — | needs the Chrome test window visible and uncovered; passed at 06:52 on v1.1, hide logic unchanged in v1.2 |

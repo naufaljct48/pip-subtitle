@@ -6,5 +6,5 @@ icons/ — toolbar/store icons 16/48/128
 README.md — install + usage (Indonesian)
 docs/SPEC.md — behaviour spec
 docs/PLAN.md — task list and status
-test/ — parser smoke + puppeteer e2e (Mode A on real pages; Mode B, resize and tab-switch pause fixtures in test/modeb)
+test/ — parser smoke + puppeteer e2e (Mode A on real pages; Mode B, resize, tab-switch pause and native-track CC fixtures in test/modeb)
 docs/TESTING.md — how to run the tests, gotchas, last results

@@ -55,10 +55,70 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     });
     const resizeOk = !!(after.size && after.size[0] === 480 && after.size[1] === 480 && after.inPip);
     log('resize', resizeOk ? 'OK' : 'FAIL', JSON.stringify({ before, ...after }));
+    // Popup volume path: __pipSub.setVolume in the iframe's isolated world (the iframe is an
+    // out-of-process frame, so it has its own CDP target).
+    const ft = browser.targets().find((t) => t.url().includes('localhost:8766/frame.html'));
+    const fcdp = await ft.createCDPSession();
+    const fctx = [];
+    fcdp.on('Runtime.executionContextCreated', (e) => fctx.push(e.context));
+    await fcdp.send('Runtime.enable');
+    await sleep(300);
+    const ours = fctx.find((c) => c.name === 'PiP Subtitle');
+    const isoEval = async (expr) => (await fcdp.send('Runtime.evaluate', { contextId: ours.id, expression: expr, returnByValue: true })).result.value;
+    const setRes = await isoEval('JSON.stringify(window.__pipSub.setVolume(0.3))');
+    const vol = await frame.evaluate(() => { const v = document.getElementById('v'); return { volume: v.volume, muted: v.muted }; });
+    const getRes = await isoEval('JSON.stringify(window.__pipSub.getVolume())');
+    await isoEval('window.__pipSub.setVolume(0)');
+    const zero = await frame.evaluate(() => document.getElementById('v').muted);
+    const volumeOk = Math.abs(vol.volume - 0.3) < 1e-6 && !vol.muted && zero === true;
+    log('volume', volumeOk ? 'OK' : 'FAIL', JSON.stringify({ setRes, page: vol, getRes, mutedAt0: zero }));
     // Pause from the original -> proxy follows; then close with Alt+P.
     log('pause sync', JSON.stringify(await frame.evaluate(async () => { const v = document.getElementById('v'); v.pause(); await new Promise((r) => setTimeout(r, 300)); return { proxyPaused: document.querySelector('video[data-pipsub]')?.paused }; })));
     await page.keyboard.down('Alt'); await page.keyboard.press('KeyP'); await page.keyboard.up('Alt');
     await sleep(1000);
     log('after close', JSON.stringify(await frame.evaluate(() => ({ proxy: !!document.querySelector('video[data-pipsub]'), pipEl: !!document.pictureInPictureElement }))));
+
+    // Captions off on the page (native tracks 'disabled'): opening PiP switches one on.
+    const tcdp = await page.createCDPSession();
+    const tctx = [];
+    tcdp.on('Runtime.executionContextCreated', (e) => tctx.push(e.context));
+    await page.goto('http://127.0.0.1:8766/track.html', { waitUntil: 'load' });
+    await tcdp.send('Runtime.enable');
+    await sleep(2000);
+    await page.mouse.click(400, 600);
+    await sleep(300);
+    await page.keyboard.down('Alt'); await page.keyboard.press('KeyP'); await page.keyboard.up('Alt');
+    await sleep(3000);
+    const tours = tctx.filter((c) => c.name === 'PiP Subtitle').pop();
+    const src = tours && (await tcdp.send('Runtime.evaluate', { contextId: tours.id, expression: 'window.__pipSub.debugSource()', returnByValue: true })).result.value;
+    // Either mode (the e2e profile may hold mode 'full'): in Document PiP the video moved there.
+    const tstate = await page.evaluate(() => {
+      const w = window.documentPictureInPicture && documentPictureInPicture.window;
+      const v = document.getElementById('v') || (w && w.document.querySelector('video'));
+      return { mode: w ? 'doc' : 'canvas', modes: [...v.textTracks].map((t) => t.language + ':' + t.mode), inPip: !!(w || document.pictureInPictureElement) };
+    });
+    const tracksOk = tstate.inPip && tstate.modes.join(',') === 'en:disabled,id:hidden' && src === 'Teks dari track Indonesia';
+    log('captions on', tracksOk ? 'OK' : 'FAIL', JSON.stringify({ ...tstate, src }));
+
+    // Lengkap toolbar volume (only when the profile is in 'full' mode): Vol + slider, ArrowUp/Down.
+    if (tstate.mode === 'doc') {
+      const dv = await page.evaluate(async () => {
+        const w = documentPictureInPicture.window;
+        const v = w.document.querySelector('video');
+        const key = (k) => w.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
+        const wait = () => new Promise((r) => setTimeout(r, 100));
+        v.muted = false; v.volume = 0.5; await wait();
+        const bar = [...w.document.querySelectorAll('.bar > *')].map((n) => n.textContent || n.type);
+        const range = w.document.querySelector('.bar .vol');
+        key('ArrowUp'); await wait(); const up = v.volume;
+        key('ArrowDown'); key('ArrowDown'); await wait(); const down = v.volume;
+        const sliderFollows = range.value === String(Math.round(v.volume * 100));
+        [...w.document.querySelectorAll('.bar button')].find((b) => b.textContent === 'Vol').click(); await wait();
+        const mutedByVol = v.muted;
+        return { bar, up, down, sliderFollows, mutedByVol, title: range.title };
+      });
+      const dvOk = dv.up === 0.6 && dv.down === 0.4 && dv.sliderFollows && dv.mutedByVol && dv.bar.indexOf('Vol') === dv.bar.indexOf('CC') + 1;
+      log('toolbar volume', dvOk ? 'OK' : 'FAIL', JSON.stringify(dv));
+    }
   } catch (e) { log('ERROR', e.stack || e); } finally { await browser.close(); }
 })();

@@ -61,6 +61,9 @@
     min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--border);
   }
   .row .hint { margin-top: 2px; }
+  .hint a { color: var(--accent); text-decoration: none; }
+  .hint a:hover { text-decoration: underline; }
+  .hint a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px; }
 
   .switch {
     flex: 0 0 auto; position: relative; width: 36px; height: 20px; padding: 0; border: 0;
@@ -81,6 +84,12 @@
   }
   .stepper button:disabled { opacity: .4; cursor: default; }
   .stepper output { min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+
+  .volume { display: flex; align-items: center; gap: 8px; }
+  .volume input { width: 120px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .volume input:disabled { cursor: default; }
+  .volume output { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .volume.disabled { opacity: .45; }
 
   .msg { margin: 12px 0 0; color: var(--muted); }
   [hidden] { display: none !important; }
@@ -107,12 +116,15 @@
     <div class="row">
       <div>
         <div id="auto-label">PiP otomatis saat pindah tab</div>
-        <p class="hint">Video harus sedang main dan bersuara.</p>
+        <p class="hint">Video harus main &amp; bersuara, di situs yang sering kamu tonton. <a href="#" id="mei-link">Cek skor</a></p>
       </div>
       <button type="button" class="switch" id="auto" role="switch" aria-checked="true" aria-labelledby="auto-label"></button>
     </div>
     <div class="row">
-      <div id="cc-label">Tampilkan subtitle</div>
+      <div>
+        <div id="cc-label">Tampilkan subtitle</div>
+        <p class="hint">Menyalakan CC di player bila belum aktif.</p>
+      </div>
       <button type="button" class="switch" id="cc" role="switch" aria-checked="true" aria-labelledby="cc-label"></button>
     </div>
     <div class="row">
@@ -121,6 +133,13 @@
         <button type="button" id="smaller" aria-label="Perkecil teks">−</button>
         <output id="size" aria-live="polite">100%</output>
         <button type="button" id="bigger" aria-label="Perbesar teks">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <label for="volume" id="volume-label">Volume</label>
+      <div class="volume disabled">
+        <input type="range" id="volume" min="0" max="100" step="5" value="100" disabled>
+        <output id="volume-value" for="volume">—</output>
       </div>
     </div>
   </div>

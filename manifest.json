@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PiP Subtitle",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Picture-in-Picture yang ikut menampilkan subtitle player (Shaka, JW Player, Video.js, Plyr, dll).",
   "minimum_chrome_version": "116",
   "permissions": ["scripting", "storage"],

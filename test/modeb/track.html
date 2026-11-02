@@ -1,0 +1,12 @@
+<!doctype html><title>Track</title><body style="margin:0;background:#000">
+<!-- Top-level player whose only captions are a native track left 'disabled' (CC off). -->
+<video id="v" muted playsinline style="width:880px;height:495px"></video>
+<script>
+const c=document.createElement('canvas'); c.width=640; c.height=360; const g=c.getContext('2d'); let n=0;
+setInterval(()=>{ g.fillStyle='hsl('+(n*7%360)+',60%,35%)'; g.fillRect(0,0,640,360); n++; },33);
+const v=document.getElementById('v'); v.srcObject=c.captureStream(30); v.play();
+const en=v.addTextTrack('subtitles','English','en'); en.addCue(new VTTCue(0,99999,'Text from the English track'));
+const id=v.addTextTrack('subtitles','Indonesia','id'); id.addCue(new VTTCue(0,99999,'Teks dari track Indonesia'));
+en.mode='disabled'; id.mode='disabled';
+</script>
+</body>

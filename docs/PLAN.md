@@ -4,7 +4,8 @@
 |---|------|------|-------|--------|
 | 1 | Scaffold | light | — | done |
 | 2 | content.js (both modes, sources, UI) | careful | 1 | done |
-| 3 | v1.1: clean/full modes, popup (replaces background.js), auto PiP, live settings, YouTube style fix, canvas follows video size | careful | 2 | review |
+| 3 | v1.1: clean/full modes, popup (replaces background.js), auto PiP, live settings, YouTube style fix, canvas follows video size | careful | 2 | done |
+| 4 | v1.2: volume (popup slider, Lengkap Vol + ↑/↓, getVolume/setVolume), turn on site captions once per session | careful | 3 | review |
 
 ## 1. Scaffold
 `manifest.json` (MV3, name "PiP Subtitle", version 1.0.0, description in Indonesian,

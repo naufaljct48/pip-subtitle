@@ -154,6 +154,19 @@ opening phase (Alt+P, popup, auto PiP):
 
 Never use `innerHTML` with page text; set `textContent` (lines via `\n` + `white-space: pre-line`).
 
+### Turning on the site's captions
+The overlay/canvas only mirrors captions the player shows. Once per session, ~1.5 s after PiP
+opens (any session kind) or after `ccOn` is switched on while a session is open (popup, other
+tab, Lengkap `CC`), if `ccOn` is on and the source has no text:
+1. YouTube: the first visible `.ytp-subtitles-button` with `aria-pressed="false"` (not
+   `display: none`) → `click()`.
+2. JW Player: a visible `.jw-icon-cc[role="button"]` with `aria-checked="false"` → `click()`.
+3. Native tracks: if the video has `subtitles`/`captions` tracks and none is `showing` or
+   `hidden`, set one to `hidden` (prefer language `id`/`in`, then the browser language, then the
+   first), so the overlay (Lengkap) or canvas (Bersih) renders it without Chrome drawing it
+   twice. Native PiP (unreadable video, no overlay) uses `showing` instead.
+Never switches captions off on the page.
+
 ### UI (Mode A PiP window)
 - Subtitle overlay: centered, `bottom: 7%`, max-width 92%, `white-space: pre-line`,
   `text-align:center`, white text, `font: 600 calc(5.5vh * var(--scale)) system-ui, sans-serif`,
@@ -163,10 +176,12 @@ Never use `innerHTML` with page text; set `textContent` (lines via `\n` + `white
 - Toolbar: top-right, appears on mousemove, hides after 2 s idle; small dark pill buttons
   (`rgba(0,0,0,.6)`, white, 12 px, radius 6 px):
   `A−` `A+` (scale 0.6–2.0 step 0.1) · `CC` (toggle overlay; dimmed when off) ·
-  `.srt` (hidden file input, accepts `.srt,.vtt`) · when a file is loaded: `−0.5s`, offset
-  label, `+0.5s`, `✕` (unload file).
-- Click on video = play/pause; `Space` = play/pause; `←`/`→` = −/+5 s; `Alt+P` or `Esc` =
-  close PiP.
+  `Vol` (toggle mute; dimmed when muted or at 0) + a 64 px range input (0–100, step 5,
+  `accent-color: #fff`) that follows the video's `volumechange` · `.srt` (hidden file input,
+  accepts `.srt,.vtt`) · when a file is loaded: `−0.5s`, offset label, `+0.5s`, `✕` (unload
+  file).
+- Click on video = play/pause; `Space` = play/pause; `←`/`→` = −/+5 s; `↑`/`↓` = volume
+  ±10 %; `Alt+P` or `Esc` = close PiP.
 - `A−`/`A+`/`CC` write `fontScale`/`ccOn` to storage (see Settings); changes made in the popup
   while the window is open re-sync the toolbar and overlay.
 
@@ -187,8 +202,15 @@ accent `#3b82f6`. Top to bottom:
   follows the selection.
 - Rows (≥ 44 px, separated by 1 px borders), label left, control right: "PiP otomatis saat
   pindah tab" + switch (hint "Video harus sedang main dan bersuara."), "Tampilkan subtitle" +
-  switch, "Ukuran teks" + stepper `−` / percent / `+` (10 % steps, 60–200 %).
+  switch (hint "Menyalakan CC di player bila belum aktif."), "Ukuran teks" + stepper `−` /
+  percent / `+` (10 % steps, 60–200 %), "Volume" + native range input (0–100, step 5, ~120 px,
+  `accent-color` = accent) + right-aligned percent label (tabular numbers).
 - Inline message area (muted, hidden unless needed).
+Volume is the page video's own volume, not a setting: on open the popup picks the same frame
+"Buka PiP" would (top frame first with the iframe check, else the best-scoring frame) and calls
+`window.__pipSub.getVolume()` there; each `input` calls `setVolume(v)` (one `executeScript` in
+flight, the latest value wins). No video / injection refused → slider disabled (opacity .45),
+label "—". The Bersih window (native video PiP) has no volume control of its own.
 Switches are `<button role="switch" aria-checked>` (36×20, accent when on); focus-visible ring
 in the accent color; no external fonts or scripts. Without `chrome.*` (opened as a plain page)
 it renders with the defaults. Changes are written to storage immediately.
@@ -199,12 +221,13 @@ it renders with the defaults. Changes are written to storage immediately.
 - "Subtitle tidak bisa ditampilkan di player ini (video lintas-domain)"
 - Toolbar tooltips: "Perkecil teks", "Perbesar teks", "Subtitle on/off",
   "Muat file subtitle (.srt/.vtt)", "Mundurkan subtitle 0,5 detik",
-  "Majukan subtitle 0,5 detik", "Lepas file subtitle".
+  "Majukan subtitle 0,5 detik", "Lepas file subtitle", "Volume (↑/↓)".
 - Popup: "Buka PiP", "Mode tampilan", "Bersih", "Lengkap",
   Bersih hint "Tanpa bilah judul. Subtitle digambar di video.",
   Lengkap hint "Ada tombol ukuran teks & muat .srt. Chrome menampilkan nama situs di atas.",
   "PiP otomatis saat pindah tab", "Video harus sedang main dan bersuara.",
-  "Tampilkan subtitle", "Ukuran teks", "Tidak ada video yang bisa di-PiP di tab ini."
+  "Tampilkan subtitle", "Menyalakan CC di player bila belum aktif.", "Ukuran teks", "Volume",
+  "Tidak ada video yang bisa di-PiP di tab ini."
 
 ## Definition of done
 - `node --check` passes on all JS files; manifest is valid JSON with the fields above.

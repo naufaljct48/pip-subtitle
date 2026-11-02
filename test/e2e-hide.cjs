@@ -42,6 +42,11 @@ async function runVariant(browser, page, variant) {
   log(variant, 'control (no PiP, hidden)', JSON.stringify(ctl));
   await page.bringToFront();
   await sleep(500);
+  // Without the anti-occlusion flags, a Chrome window covered by another window or minimized
+  // stays hidden after bringToFront, and every later step would fail for that reason.
+  if (await page.evaluate(() => document.hidden)) {
+    throw new Error('page still hidden after bringToFront: keep the Chrome test window visible and uncovered');
+  }
   await frame.evaluate(() => document.getElementById('v').play());
   await sleep(500);
 

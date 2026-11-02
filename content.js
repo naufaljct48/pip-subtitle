@@ -19,6 +19,7 @@
     bigger: 'Perbesar teks',
     cc: 'Subtitle on/off',
     loadFile: 'Muat file subtitle (.srt/.vtt)',
+    volume: 'Volume (↑/↓)',
     back: 'Mundurkan subtitle 0,5 detik',
     fwd: 'Majukan subtitle 0,5 detik',
     unload: 'Lepas file subtitle',
@@ -95,6 +96,15 @@
       if (Number.isFinite(v.duration) && t > v.duration) t = v.duration;
       v.currentTime = t;
     } catch (_) { /* not seekable */ }
+  }
+
+  // 0..1; above 0 also unmutes, 0 mutes.
+  function applyVolume(v, x) {
+    const n = Number(x);
+    if (!Number.isFinite(n)) return;
+    const vol = Math.round(Math.min(1, Math.max(0, n)) * 100) / 100;
+    v.volume = vol;
+    v.muted = vol === 0;
   }
 
   function waitEvent(target, name, ms) {
@@ -591,6 +601,65 @@
     else if (!err || err.name !== 'AbortError') console.warn('[PiP Subtitle]', err);
   }
 
+  // ==== Turning on the site's captions ====
+  // The overlay only mirrors captions the player shows. If nothing shows ~1.5 s after PiP
+  // opens (or after CC is switched on), switch the site's captions on once per session.
+  // Never switches them off.
+
+  const isShown = (el) => el.getClientRects().length > 0 &&
+    !/display:\s*none/i.test(el.getAttribute('style') || '');
+
+  function pickTrack(list) {
+    const langs = ['id', 'in', String(navigator.language || '').toLowerCase().split('-')[0]];
+    for (const l of langs) {
+      const t = list.find((x) => String(x.language || '').toLowerCase().split('-')[0] === l);
+      if (t) return t;
+    }
+    return list[0];
+  }
+
+  function enableSiteCaptions(video, nativeMode) {
+    // YouTube: CC button in the same frame; aria-pressed="true" means already on.
+    for (const b of document.querySelectorAll('.ytp-subtitles-button')) {
+      if (b.getAttribute('aria-pressed') === 'false' && isShown(b)) { b.click(); return 'youtube'; }
+    }
+    // JW Player: a plain CC toggle only.
+    for (const b of document.querySelectorAll('.jw-icon-cc[role="button"]')) {
+      if (b.getAttribute('aria-checked') === 'false' && isShown(b)) { b.click(); return 'jw'; }
+    }
+    // Native tracks: 'hidden' lets our overlay / canvas render them without Chrome drawing them
+    // a second time. Native PiP (no overlay) needs 'showing' to display them at all.
+    const tracks = video.textTracks ? [...video.textTracks] : [];
+    const subs = tracks.filter((t) => t.kind === 'subtitles' || t.kind === 'captions');
+    if (subs.length && !subs.some((t) => t.mode === 'showing' || t.mode === 'hidden')) {
+      pickTrack(subs).mode = nativeMode ? 'showing' : 'hidden';
+      return 'track';
+    }
+    return null;
+  }
+
+  function scheduleCaptionsOn(sess) {
+    if (!sess || sess.captionsTried || sess.captionsTimer) return;
+    sess.captionsTimer = setTimeout(() => {
+      sess.captionsTimer = 0;
+      if (session !== sess || !settings.ccOn || sess.captionsTried) return;
+      sess.captionsTried = true;
+      let text = '';
+      try { text = sess.source ? sess.source.compute() : ''; } catch (_) { /* source gone */ }
+      if (text) return;
+      try {
+        if (enableSiteCaptions(sess.video, sess.kind === 'native') && sess.source) {
+          setTimeout(() => { if (session === sess) sess.source.refresh(); }, 300);
+        }
+      } catch (err) { console.warn('[PiP Subtitle]', err); }
+    }, 1500);
+  }
+
+  // CC switched on (popup, other tab, or the Lengkap toolbar) while a session is open.
+  settingsListeners.add(() => {
+    if (settings.ccOn && session && session.kind !== 'debug') scheduleCaptionsOn(session);
+  });
+
   // ==== Mode A — Document PiP ====
 
   const DOC_CSS = `
@@ -615,7 +684,8 @@
       border:0;border-radius:6px;padding:4px 7px;margin:0}
     .bar button{cursor:pointer}
     .bar button:hover{background:rgba(0,0,0,.85)}
-    .bar button.off{opacity:.45}`;
+    .bar button.off{opacity:.45}
+    .bar .vol{width:64px;margin:0 2px 0 0;accent-color:#fff;cursor:pointer}`;
 
   // Players such as YouTube rewrite the video's inline px box on every new video; the
   // !important rules in DOC_CSS win over that, this attribute only covers the first paint.
@@ -667,13 +737,42 @@
     const setScale = (v) => { settings.fontScale = clampScale(v); saveSettings(); sync(); };
     const bSmaller = button('A−', COPY.smaller, () => setScale(settings.fontScale - 0.1));
     const bBigger = button('A+', COPY.bigger, () => setScale(settings.fontScale + 0.1));
-    const bCC = button('CC', COPY.cc, () => { settings.ccOn = !settings.ccOn; saveSettings(); sync(); });
+    const bCC = button('CC', COPY.cc, () => {
+      settings.ccOn = !settings.ccOn;
+      saveSettings();
+      sync();
+      if (settings.ccOn) scheduleCaptionsOn(sess);
+    });
+    const bVol = button('Vol', COPY.volume, () => {
+      if (video.muted || video.volume === 0) applyVolume(video, video.volume || 0.5);
+      else video.muted = true;
+    });
+    const volRange = make('input', 'vol');
+    volRange.type = 'range';
+    volRange.min = '0';
+    volRange.max = '100';
+    volRange.step = '5';
+    volRange.title = COPY.volume;
+    volRange.tabIndex = -1;
+    volRange.setAttribute('aria-label', COPY.volume);
+    volRange.addEventListener('input', () => applyVolume(video, Number(volRange.value) / 100));
+    volRange.addEventListener('change', () => volRange.blur());
+    volRange.addEventListener('click', (e) => e.stopPropagation());
     const bFile = button('.srt', COPY.loadFile, () => input.click());
     const bBack = button('−0.5s', COPY.back, () => { source.shiftOffset(-0.5); sync(); });
     const lbl = make('span', 'lbl');
     const bFwd = button('+0.5s', COPY.fwd, () => { source.shiftOffset(0.5); sync(); });
     const bUnload = button('✕', COPY.unload, () => { source.clearExternal(); sync(); });
-    bar.append(bSmaller, bBigger, bCC, bFile, bBack, lbl, bFwd, bUnload);
+    bar.append(bSmaller, bBigger, bCC, bVol, volRange, bFile, bBack, lbl, bFwd, bUnload);
+
+    // The video goes back to the page on close, so this listener is removed in destroy().
+    const syncVolume = () => {
+      const silent = video.muted || video.volume === 0;
+      bVol.classList.toggle('off', silent);
+      volRange.value = String(silent ? 0 : Math.round(video.volume * 100));
+    };
+    video.addEventListener('volumechange', syncVolume);
+    syncVolume();
 
     input.addEventListener('change', async () => {
       const file = input.files && input.files[0];
@@ -729,11 +828,23 @@
       if (e.code === 'Space') { e.preventDefault(); togglePlay(video); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); seekBy(video, -5); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(video, 5); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const cur = video.muted ? 0 : video.volume;
+        applyVolume(video, cur + (e.key === 'ArrowUp' ? 0.1 : -0.1));
+      }
     }, true);
 
     settingsListeners.add(sync);
     sync();
-    return { render, destroy() { clearTimeout(hideTimer); settingsListeners.delete(sync); } };
+    return {
+      render,
+      destroy() {
+        clearTimeout(hideTimer);
+        settingsListeners.delete(sync);
+        video.removeEventListener('volumechange', syncVolume);
+      },
+    };
   }
 
   async function openDocPip(video) {
@@ -814,6 +925,7 @@
     ui = buildDocUi(pipWin, video, source, sess);
     source.refresh();
     ui.render(source.text);
+    scheduleCaptionsOn(sess);
 
     watch = setInterval(() => {
       if (!placeholder.isConnected || !doc.contains(video)) { sess.close(); return; }
@@ -979,6 +1091,7 @@
     }
     video.addEventListener('leavepictureinpicture', end);
     toast(COPY.crossOrigin);
+    scheduleCaptionsOn(sess);
   }
 
   // onUnreadable: where to go when the canvas cannot read the video (still within activation).
@@ -1075,6 +1188,7 @@
       }
     }
     watch = setInterval(() => { if (!video.isConnected) sess.close(); }, 500);
+    scheduleCaptionsOn(sess);
   }
 
   // ==== Triggers ====
@@ -1181,5 +1295,24 @@
     if (session) session.close();
   }
 
-  window.__pipSub = { toggle, debugSource, debugCanvas, stop };
+  // Volume for the popup: the session video if one is open, else the best video in this frame.
+  function volumeTarget() {
+    if (session && session.kind !== 'debug') return session.video;
+    const pick = pickVideo();
+    return pick ? pick.video : null;
+  }
+
+  function getVolume() {
+    const v = volumeTarget();
+    return v ? { volume: v.volume, muted: v.muted } : null;
+  }
+
+  function setVolume(x) {
+    const v = volumeTarget();
+    if (!v) return null;
+    applyVolume(v, x);
+    return { volume: v.volume, muted: v.muted };
+  }
+
+  window.__pipSub = { toggle, debugSource, debugCanvas, stop, getVolume, setVolume };
 })();
