@@ -3,8 +3,11 @@
 Stack: Chrome MV3, plain JavaScript, no build step, no dependencies.
 
 Commands:
-- Syntax check: `node --check i18n.js && node --check content.js && node --check popup.js`
-- Tests: see `docs/TESTING.md` (parser smoke + real-Chrome e2e via puppeteer-core)
+- All checks: `npm run check` (syntax, i18n keys, subtitle parser, store text limits, zip contents)
+- Package: `npm run zip` → `dist/pip-subtitle-<version>.zip`; keep `package.json` version = manifest version
+- Tests: see `docs/TESTING.md`; e2e via `npm run e2e:modeb|e2e:seek|e2e:hide` (real Chrome,
+  `npm install --ignore-scripts` first; `CHROME_PATH` / `PUPPETEER_CORE` override). No
+  machine-specific paths in the repo.
 - Run: chrome://extensions → Developer mode → Load unpacked → this folder; reload after edits.
 
 Conventions:

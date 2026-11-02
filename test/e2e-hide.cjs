@@ -1,9 +1,9 @@
 // Tab switch while in PiP on a site that pauses its own video on visibilitychange.
-// Needs: python -I test/serve_ext.py test/modeb 8766
+// Starts the fixture server (test/lib/env.cjs) itself.
 // Chrome runs with normal background behaviour (puppeteer's anti-throttling flags removed).
 // For each fixture variant: (1) control without PiP: the fixture really pauses when hidden;
 // (2) with canvas PiP open: the source keeps playing and the proxy frames keep changing.
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR, startFixtureServer } = require('./lib/env.cjs');
 const path = require('path');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -95,10 +95,12 @@ async function runVariant(browser, page, variant) {
 }
 
 (async () => {
+  // Fixture pages on 127.0.0.1 and localhost (two origins); reuses one already running.
+  const server = await startFixtureServer();
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
-    userDataDir: path.join(__dirname, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
     defaultViewport: { width: 1280, height: 760 },
     ignoreDefaultArgs: [
       '--disable-background-timer-throttling',
@@ -109,7 +111,7 @@ async function runVariant(browser, page, variant) {
   });
   let failed = false;
   try {
-    await browser.installExtension(process.env.EXT_DIR || path.resolve(__dirname, '..'));
+    await browser.installExtension(EXT_DIR);
     const page = (await browser.pages())[0];
     page.on('console', (m) => { if (/PiP Subtitle/.test(m.text())) log('console', m.text().slice(0, 200)); });
     for (const variant of ['1', 'window']) {
@@ -123,6 +125,7 @@ async function runVariant(browser, page, variant) {
     log('ERROR', e.stack || e);
   } finally {
     await browser.close();
+    await server.close();
   }
   process.exitCode = failed ? 1 : 0;
 })();

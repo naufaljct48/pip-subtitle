@@ -2,7 +2,7 @@
 //   node test/e2e-v11.cjs clean <url> [adWaitSec]   popup "Buka PiP" -> canvas PiP, then tab switch
 //   node test/e2e-v11.cjs full  <url> [adWaitSec]   Alt+P -> Document PiP, then Shift+N (YouTube next)
 // env PLAY_XY=x,y clicks a play overlay first.
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR } = require('./lib/env.cjs');
 const path = require('path');
 const fs = require('fs');
 const [mode, url, adWait = '0'] = process.argv.slice(2);
@@ -27,15 +27,15 @@ const PROXY_STATS = `(() => {
 
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
     ignoreDefaultArgs: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
-    userDataDir: path.join(OUT, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
     defaultViewport: null,
     args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860'].concat(process.env.NOMUTE ? [] : ['--mute-audio']),
   });
   try {
-    const extId = await browser.installExtension(path.join(OUT, '..'));
+    const extId = await browser.installExtension(EXT_DIR);
     const page = (await browser.pages())[0];
     browser.on('targetcreated', async (t) => {
       const u = t.url();

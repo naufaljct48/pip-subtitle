@@ -1,7 +1,7 @@
 // v1.2 e2e on YouTube: CC off on the page, popup volume slider -> 30 %, popup "Buka PiP" (Bersih).
 // Expect: page video volume 0.3, YouTube CC switched on by the extension, canvas PiP open.
 //   node test/e2e-v12.cjs [youtubeUrl]
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR } = require('./lib/env.cjs');
 const path = require('path');
 const url = process.argv[2] || 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -9,14 +9,14 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
-    userDataDir: path.join(__dirname, 'e2e-profile'), defaultViewport: null,
+    userDataDir: PROFILE_DIR, defaultViewport: null,
     args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860', '--mute-audio'],
   });
   const result = {};
   try {
-    const extId = await browser.installExtension(path.join(__dirname, '..'));
+    const extId = await browser.installExtension(EXT_DIR);
     const page = (await browser.pages())[0];
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await sleep(5000);

@@ -12,7 +12,7 @@ native text tracks, so the captions are lost.
   (no title bar) of a canvas with the subtitles burned in; **Lengkap** (`full`) = Document PiP
   with an HTML overlay and toolbar (Chrome always shows its origin bar on top of that window).
 - Optional automatic PiP when the user leaves a tab with a playing video.
-- Works on the reference site: Shaka player in the top-level page, captions in
+- Works on a Shaka-based player site: Shaka player in the top-level page, captions in
   `.shaka-text-container` (verified: the container keeps updating after the `<video>` is moved
   to another parent; canvas `drawImage` of its MSE blob video is not tainted).
 - Optional (Lengkap): load a local `.srt` / `.vtt` file and shift it ±0.5 s.
@@ -31,7 +31,13 @@ i18n.js            UI strings (en, id) + pipsubLang(); loaded before content.js 
 popup.html/.js     action popup: "Open PiP" (frame picking + toggle) and settings
 content.js         all frames, document_idle: everything else (single file, IIFE, no deps)
 icons/             16/48/128 PNG
+_locales/          en/id messages for the manifest
 ```
+
+Repository extras (not packaged): `scripts/zip.mjs` builds the store zip with exactly the files
+above (`npm run zip`, validated by `npm run check`); `store/` holds the Chrome Web Store listing
+text and permission justifications; `test/` the checks and e2e tests (docs/TESTING.md);
+`PRIVACY.md`, `LICENSE` (MIT), `.github/workflows/check.yml` (CI: `npm run check` + zip).
 
 ### Settings
 `chrome.storage.local` key `pipsub`: `{ fontScale: 0.6–2.0 (1), ccOn (true),
@@ -142,7 +148,7 @@ video in reaction to the tab switch (see next section) when the handler runs, th
 counts as playing and is resumed.
 
 ### Keep playing while the tab is hidden
-Some sites (the reference site included) pause their own video on `visibilitychange`, which
+Some sites (a Shaka-based player site we tested included) pause their own video on `visibilitychange`, which
 freezes the PiP the user switched tabs to watch. Applies to every session kind and to the
 opening phase (Alt+P, popup, auto PiP):
 1. A `visibilitychange` listener on `window`, capture phase, registered at load in every frame,
@@ -275,9 +281,9 @@ unchanged.
 
 ## Definition of done
 - `node --check` passes on all JS files; manifest is valid JSON with the fields above.
-- Injecting `content.js` into the reference page (no `chrome.*` available) and calling the
+- Injecting `content.js` into a Shaka-based player page (no `chrome.*` available) and calling the
   exposed test hook `window.__pipSub.debugSource()` returns the live caption text, and
   `window.__pipSub.debugCanvas()` returns the Mode B canvas (draw loop running, no PiP request)
   whose frames contain the video and the subtitle; `window.__pipSub.stop()` tears it down.
-- Loaded unpacked in Chrome: `Alt+P` on the reference page opens a PiP window with the video
+- Loaded unpacked in Chrome: `Alt+P` on a Shaka-based player page opens a PiP window with the video
   and live Indonesian subtitles; closing it puts the video back in the page player.

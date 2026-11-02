@@ -1,0 +1,25 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # .npmrc sets ignore-scripts=true; the flag repeats it so no install script ever runs.
+      - run: npm install --ignore-scripts
+      - run: npm run check
+      - run: npm run zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: dist/*.zip

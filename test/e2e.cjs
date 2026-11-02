@@ -1,20 +1,20 @@
 // End-to-end: real Chrome + unpacked extension, Alt+P on a page, read the Document PiP window.
 // usage: node e2e.cjs <url> [waitAdSeconds]
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR } = require('./lib/env.cjs');
 const path = require('path');
 const SCR = __dirname;
-const EXT = 'D:/tools/pip-subtitle-ext';
+const EXT = EXT_DIR;
 const url = process.argv[2];
 const adWait = Number(process.argv[3] || 0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false,
     pipe: true,
     enableExtensions: true,
-    userDataDir: path.join(SCR, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
     defaultViewport: { width: 1280, height: 760 },
     args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860', '--mute-audio'],
   });

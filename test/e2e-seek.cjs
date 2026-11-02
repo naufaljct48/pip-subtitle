@@ -1,9 +1,9 @@
 // v1.3 timeline: seeking in both modes on a seekable 60 s clip (test/modeb/seek.html).
-// Needs: python -I test/serve_ext.py test/modeb 8766
+// Starts the fixture server (test/lib/env.cjs) itself.
 // Bersih: media session seek handlers (via __pipSub.debugSeek, the same functions registered
 // with navigator.mediaSession) and the canvas progress bar while paused.
 // Lengkap: the bottom seek bar in the Document PiP window and the J/K/L keys.
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR, startFixtureServer } = require('./lib/env.cjs');
 const path = require('path');
 const fs = require('fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,16 +27,18 @@ async function altP(page) {
 }
 
 (async () => {
+  // Fixture pages on 127.0.0.1 and localhost (two origins); reuses one already running.
+  const server = await startFixtureServer();
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
-    userDataDir: path.join(__dirname, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
     defaultViewport: { width: 1280, height: 760 },
     args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860'],
   });
   let failed = false;
   try {
-    const extId = await browser.installExtension(path.resolve(__dirname, '..'));
+    const extId = await browser.installExtension(EXT_DIR);
     // Writes settings the way the popup does (merged into the stored object).
     const setPref = async (patch) => {
       const p = await browser.newPage();
@@ -243,6 +245,7 @@ async function altP(page) {
     log('ERROR', e.stack || e);
   } finally {
     await browser.close();
+    await server.close();
   }
   const ok = !failed && Object.values(results).length > 0 && Object.values(results).every(Boolean);
   log(ok ? 'PASS' : 'FAIL', JSON.stringify(results));

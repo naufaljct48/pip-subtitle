@@ -10,7 +10,7 @@ const v=document.getElementById('v'); v.srcObject=c.captureStream(30); v.play();
 // Simulates "next video" with another aspect: 640x360 -> 480x480 (?resize=1 does it after 3 s).
 window.resizeSource=()=>{ c.width=480; c.height=480; };
 if(new URLSearchParams(location.search).get('resize')==='1') setTimeout(window.resizeSource,3000);
-// Like the reference site: pause our own video when the tab is hidden. ?pauseOnHide=1 listens
+// Like some real sites: pause our own video when the tab is hidden. ?pauseOnHide=1 listens
 // on document (bubbling, as most sites do); ?pauseOnHide=window listens on window capture and
 // is registered before the extension, so only the extension's auto-resume can undo it.
 const poh=new URLSearchParams(location.search).get('pauseOnHide');

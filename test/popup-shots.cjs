@@ -1,18 +1,18 @@
 // node test/popup-shots.cjs → test/v14-popup-{en,id}-{light,dark}.png
 // Opens the real extension popup page (chrome-extension://<id>/popup.html) in a tab at popup
 // size, sets the language through storage, and screenshots both color schemes.
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR } = require('./lib/env.cjs');
 const path = require('path');
 
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
-    userDataDir: path.join(__dirname, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
   });
   const out = [];
   try {
-    const id = await browser.installExtension(path.resolve(__dirname, '..'));
+    const id = await browser.installExtension(EXT_DIR);
     const page = await browser.newPage();
     await page.setViewport({ width: 300, height: 520, deviceScaleFactor: 2 });
     await page.goto(`chrome-extension://${id}/popup.html`);

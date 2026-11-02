@@ -1,20 +1,27 @@
 // Mode B: player inside a cross-origin iframe -> canvas + proxy video PiP with subtitles burned in.
-const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const { puppeteer, chromePath, EXT_DIR, PROFILE_DIR, startFixtureServer } = require('./lib/env.cjs');
 const path = require('path');
 const SCR = __dirname;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+// Any 'FAIL' or 'ERROR' line makes the run exit non-zero (npm run e2e:modeb).
+let failed = false;
+const log = (...a) => {
+  if (a.includes('FAIL') || a.includes('ERROR')) failed = true;
+  console.log(new Date().toISOString().slice(11, 19), ...a);
+};
 
 (async () => {
+  // Fixture pages on 127.0.0.1 and localhost (two origins); reuses one already running.
+  const server = await startFixtureServer();
   const browser = await puppeteer.launch({
-    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    executablePath: chromePath(),
     headless: false, pipe: true, enableExtensions: true,
-    userDataDir: path.join(SCR, 'e2e-profile'),
+    userDataDir: PROFILE_DIR,
     defaultViewport: { width: 1280, height: 760 },
     args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860'],
   });
   try {
-    await browser.installExtension('D:/tools/pip-subtitle-ext');
+    await browser.installExtension(EXT_DIR);
     const page = (await browser.pages())[0];
     page.on('console', (m) => { if (/PiP Subtitle/.test(m.text())) log('console', m.text().slice(0, 200)); });
     await page.goto('http://127.0.0.1:8766/top.html', { waitUntil: 'load' });
@@ -121,5 +128,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
       const dvOk = dv.up === 0.6 && dv.down === 0.4 && dv.sliderFollows && dv.mutedByVol && dv.bar.indexOf('range') === dv.bar.indexOf('Vol') + 1 && !dv.topBar.includes('Vol');
       log('mini player volume', dvOk ? 'OK' : 'FAIL', JSON.stringify(dv));
     }
-  } catch (e) { log('ERROR', e.stack || e); } finally { await browser.close(); }
+  } catch (e) { log('ERROR', e.stack || e); } finally { await browser.close(); await server.close(); }
+  log(failed ? 'FAIL' : 'PASS');
+  process.exitCode = failed ? 1 : 0;
 })();

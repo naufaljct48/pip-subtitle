@@ -1,71 +1,136 @@
 # PiP Subtitle
 
-*English below is a short summary; the full guide follows in Indonesian.*
+A Chrome extension that opens a video in Picture-in-Picture **with its subtitles**.
 
-## English
+![PiP Subtitle: Picture-in-Picture that keeps the subtitles](store/screenshots/1-hero-en.png)
 
-A Chrome extension that opens a video in Picture-in-Picture **with its subtitles**. Works with common players such as Shaka, JW Player, Video.js, Plyr, YouTube and more.
+Most web video players (Shaka Player, JW Player, Video.js, Plyr and many others) draw subtitles as
+HTML on top of the `<video>` element instead of using the browser's native text tracks. Chrome's
+built-in Picture-in-Picture only shows the `<video>` itself, so the subtitles are lost the moment
+the video pops out. PiP Subtitle reads the captions the player is currently showing and puts them
+into the PiP window.
 
-**Install:** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this folder.
+*Ringkasan bahasa Indonesia ada di bagian bawah.*
 
-**Use:** press **Alt+P** on a page with a video, or click the extension icon and then **Open PiP**. The popup also has:
+## Features
 
-- **Display mode** — **Clean** (default): a plain PiP window without a title bar, subtitles drawn on the video, time and progress shown while paused; Chrome's skip buttons jump 15 s. **Full**: a PiP window with a mini player (seek bar, ±15 s, click the time to type one, volume) and text size / `.srt` buttons; Chrome always shows the site name on top of this window.
-- **Auto PiP when switching tabs** — Chrome only fires it for sites you often watch with sound (see `chrome://media-engagement`).
-- **Show subtitles** (turns on the player's CC if it is off), **Text size**, **Volume** of the video in the tab, and **Language** (Auto / EN / ID; Auto follows the browser language).
+- **Subtitles in PiP** from the player's own caption layer, from the video's text tracks, or from a
+  local `.srt` / `.vtt` file.
+- **Two display modes**
+  - **Clean** (default): a plain PiP window without a title bar; the subtitles are drawn onto the
+    video. Time and progress appear while paused or right after a seek.
+  - **Full**: a PiP window with a mini player (seek bar, ±15 s, play/pause, type a time to jump,
+    volume), text size, subtitle on/off, `.srt` loading and a ±0.5 s subtitle offset.
+- **Automatic PiP when you switch tabs** (when Chrome allows it, see below).
+- **Turns on the player's captions** if they are off when PiP opens.
+- **Keeps playing in PiP** on sites that pause their video when the tab is hidden.
+- **Volume control** in the popup.
+- **English and Indonesian** interface (follows the browser, or pick one).
+- **No data collected**, no network requests, no remote code. See [PRIVACY.md](PRIVACY.md).
 
-Keys in the Full window: Space/K play/pause, ←/→ 5 s, J/L 15 s, ↑/↓ volume, Esc or Alt+P close.
+## Install
+
+- **Chrome Web Store:** TODO (link once published).
+- **From source (Load unpacked):**
+  1. Download or clone this repository.
+  2. Open `chrome://extensions` and turn on **Developer mode**.
+  3. Click **Load unpacked** and choose the repository folder.
+
+Requires Chrome 116 or newer.
+
+## Usage
+
+- Click the extension icon and press **Open PiP**, or press **Alt+P** on a page with a video.
+  Press again to close.
+- The popup also sets the display mode, automatic PiP, subtitles on/off, text size, the video's
+  volume and the language.
+
+### Clean vs Full
+
+| | Clean | Full |
+|---|---|---|
+| Window | Chrome's normal video PiP, no title bar | Document PiP; Chrome always shows a bar with the site name on top |
+| Subtitles | drawn onto the video | HTML overlay, resizable |
+| Controls | none from Chrome: the window shows a canvas stream, which Chrome treats as live and gives no play/pause or seek buttons. Use Alt+P, the popup (volume) or the page's player; the extension draws time and progress on the video while paused | full mini player: seek bar with hover time, ±15 s, play/pause, click the time to type one, volume |
+| Extras | — | text size, `.srt` / `.vtt` loading, ±0.5 s subtitle offset |
+
+Videos a canvas cannot read (cross-origin without CORS, or DRM-protected) open in Full mode even
+when Clean is selected.
+
+Keys in the Full window: Space or K play/pause, ←/→ 5 s, J/L 15 s, ↑/↓ volume, Esc or Alt+P close.
+
+### Automatic PiP
+
+When **Auto PiP when switching tabs** is on, a video that is playing goes into PiP when you switch
+to another tab. Chrome decides when this is allowed: the video must be playing with sound, and the
+site must have a high *media engagement* score (sites you often watch with sound). You can see the
+scores at `chrome://media-engagement`. On a new or rarely used site, use the popup or Alt+P.
+
+## Supported players
+
+Caption layers of Shaka Player, JW Player, Video.js, Plyr, ArtPlayer, DPlayer, Flowplayer,
+MediaElement.js, Vidstack, media-chrome and Bitmovin, plus the caption layers of several large
+video platforms' own players, a generic fallback for elements whose class contains "subtitle" or
+"caption", and the video's native text tracks. The full list is `CAPTION_SELECTORS` in
+[`content.js`](content.js).
+
+## Limitations
+
+- **Iframes:** a player inside a cross-origin iframe always uses Clean mode. If its video is
+  cross-origin or DRM-protected, the canvas cannot read it, and PiP opens without subtitles.
+- **Chrome's Live Caption** is drawn by the browser, not the page, so it cannot be mirrored.
+- Subtitles must be shown by the player (or be available as a text track); the extension tries to
+  turn on the player's CC once, but cannot pick a language inside every player's menu.
+- The Full window cannot keep the video's aspect ratio when you resize it (Chrome limitation);
+  the video is letterboxed instead of stretched.
+- Chrome only (Manifest V3, Chrome 116+). Not for Firefox or Safari.
+
+## Privacy
+
+PiP Subtitle collects nothing and sends nothing. Settings are stored locally in
+`chrome.storage.local`; subtitle files are read locally; page captions are read only to draw them
+in the PiP window. Details: [PRIVACY.md](PRIVACY.md).
+
+## Development
+
+Plain JavaScript, no build step, no runtime dependencies. Node 22 and Google Chrome for the tests.
+
+```bash
+npm install --ignore-scripts   # puppeteer-core only, for the browser tests
+npm run check                  # syntax, i18n keys, subtitle parser, package contents
+npm run zip                    # dist/pip-subtitle-<version>.zip for the Chrome Web Store
+npm run e2e:modeb              # browser tests with real Chrome (they start the fixture server)
+npm run e2e:seek
+npm run e2e:hide
+```
+
+`CHROME_PATH` points the tests at a Chrome binary; `PUPPETEER_CORE` at another puppeteer-core.
+See [docs/TESTING.md](docs/TESTING.md) for the tests and [docs/SPEC.md](docs/SPEC.md) for the
+behaviour spec. Store listing text: [store/listing.md](store/listing.md).
+
+## License
+
+[MIT](LICENSE)
+
+---
 
 ## Bahasa Indonesia
 
-Ekstensi Chrome yang membuka video dalam Picture-in-Picture **beserta subtitle-nya**. Bekerja dengan player umum seperti Shaka, JW Player, Video.js, Plyr, YouTube, dan lain-lain.
+Ekstensi Chrome yang membuka video dalam Picture-in-Picture **beserta subtitle-nya**. Kebanyakan
+player web menggambar subtitle sebagai HTML di atas video, sehingga PiP bawaan Chrome kehilangan
+subtitle; ekstensi ini membaca subtitle yang sedang tampil dan memasukkannya ke jendela PiP.
 
-## Pasang
+**Pasang:** buka `chrome://extensions`, aktifkan **Mode pengembang**, klik **Muat yang belum
+dibuka** (Load unpacked), lalu pilih folder ini. (Tautan Chrome Web Store menyusul.)
 
-1. Buka `chrome://extensions`.
-2. Aktifkan **Mode pengembang**.
-3. Klik **Muat yang belum dibuka** (Load unpacked) lalu pilih folder ini.
+**Pakai:** klik ikon ekstensi lalu **Buka PiP**, atau tekan **Alt+P** di halaman video.
 
-## Pakai
+- **Bersih** (bawaan): jendela PiP biasa tanpa bilah judul, subtitle digambar di video; waktu dan
+  garis kemajuan muncul saat dijeda.
+- **Lengkap**: jendela PiP dengan pemutar mini (garis waktu, ±15 detik, ketik waktu tujuan,
+  volume), ukuran teks, dan muat `.srt`; Chrome selalu menampilkan nama situs di atas jendela ini.
+- **PiP otomatis saat pindah tab** hanya dipicu Chrome untuk situs yang sering kamu tonton dengan
+  suara (lihat `chrome://media-engagement`).
+- Popup juga mengatur subtitle on/off, ukuran teks, volume video, dan bahasa (Auto / EN / ID).
 
-Tekan **Alt+P** di halaman video, atau klik ikon ekstensi lalu **Buka PiP**.
-
-Popup ekstensi juga berisi pengaturan (berlaku langsung, tanpa muat ulang halaman):
-
-- **Mode tampilan**
-  - **Bersih** (bawaan) — jendela PiP biasa tanpa bilah judul; subtitle digambar langsung di video.
-  - **Lengkap** — jendela PiP dengan tombol ukuran teks dan muat `.srt`. Chrome selalu menampilkan nama situs di bagian atas jendela ini.
-- **PiP otomatis saat pindah tab** — video yang sedang main langsung masuk PiP ketika kamu pindah tab.
-- **Tampilkan subtitle** — tampilkan/sembunyikan subtitle. Bila CC di player belum aktif, ekstensi menyalakannya sekali saat PiP dibuka (YouTube, JW Player, atau track subtitle bawaan video; Bahasa Indonesia didahulukan). Ekstensi tidak pernah mematikan CC di player.
-- **Ukuran teks** — 60–200%.
-- **Bahasa** — Auto / EN / ID; Auto mengikuti bahasa browser (Indonesia bila browser berbahasa Indonesia, selain itu Inggris).
-- **Volume** — volume video di tab ini (0–100%). Jendela PiP mode Bersih dari Chrome tidak punya penggeser volume, jadi atur dari sini; tombol speaker di jendela Bersih ikut membisukan/menyalakan suara video.
-
-Di jendela PiP mode **Bersih**, waktu dan garis kemajuan muncul di bagian bawah video saat video dijeda atau sebentar sesudah kamu memutar/menjeda/menggeser. Tombol maju/mundur Chrome melompat 15 detik.
-
-Jendela PiP mode **Lengkap** punya pemutar mini di bagian bawah (muncul saat mouse bergerak, tetap tampil selama video dijeda):
-- garis waktu — klik untuk melompat, geser untuk mencari; arahkan mouse untuk melihat waktunya
-- **▶ / ❚❚** — putar/jeda; **−15 / +15** — mundur/maju 15 detik
-- waktu "12:34 / 44:58" — klik lalu ketik waktu tujuan (`1:02:03`, `12:30`, atau `90` detik), tekan Enter
-- **Vol** + penggeser — bisukan/nyalakan suara dan atur volume
-
-Tombol di atas kanan jendela Lengkap:
-- **A− / A+** — ubah ukuran huruf subtitle
-- **CC** — tampilkan/sembunyikan subtitle
-- **.srt** — muat berkas subtitle sendiri
-- **geser ±0,5 detik** — sesuaikan waktu subtitle
-
-Pintasan di jendela PiP mode Lengkap:
-- Klik / **Space** — putar/jeda
-- **←** / **→** — mundur/maju 5 detik
-- **J** / **L** — mundur/maju 15 detik; **K** — putar/jeda
-- **↑** / **↓** — volume naik/turun 10%
-- **Esc** / **Alt+P** — tutup PiP
-
-## Catatan
-
-- Subtitle yang tampil di PiP adalah subtitle yang sedang ditampilkan player; bila belum aktif, ekstensi mencoba menyalakan CC player sekitar 1,5 detik setelah PiP terbuka.
-- Chrome hanya memicu PiP otomatis untuk situs yang sering kamu tonton dengan suara; cek skornya di `chrome://media-engagement`.
-- Video yang tidak bisa digambar ulang (lintas-domain atau ber-DRM) memakai mode Lengkap walau pilihanmu Bersih.
-- Player di dalam iframe selalu memakai mode Bersih.
-- Video lintas-domain di dalam iframe hanya bisa PiP tanpa subtitle.
+Privasi: tidak ada data yang dikumpulkan atau dikirim — lihat [PRIVACY.md](PRIVACY.md).

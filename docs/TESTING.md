@@ -2,21 +2,28 @@
 
 Real Chrome (stable) + this unpacked extension via puppeteer-core 25 (`browser.installExtension`,
 CDP `Extensions.loadUnpacked`); `--load-extension` no longer works in branded Chrome.
-Set `PUPPETEER_CORE` if puppeteer-core lives elsewhere.
+Shared setup is `test/lib/env.cjs`: `CHROME_PATH` (default: the usual Chrome install path per
+platform; on Linux the first of google-chrome / chromium on PATH), `PUPPETEER_CORE` (another
+puppeteer-core module path), `EXT_DIR` (load another copy of the extension, e.g. a mutated one or
+the unpacked store zip). The e2e scripts start the fixture server themselves (test/modeb on
+127.0.0.1 and localhost, port 8766 — two origins for the cross-origin iframe); `npm run fixtures`
+runs it on its own.
 
 ```bash
+npm install --ignore-scripts                                # puppeteer-core
+npm run check                                               # syntax + the two checks below + store text + zip contents
+npm run zip                                                 # dist/pip-subtitle-<version>.zip (scripts/zip.mjs)
 node test/parser-smoke.mjs content.js                      # SRT/VTT parser
 node test/i18n-keys.mjs                                     # en/id keys match, used keys exist, no Indonesian copy in code
 node test/popup-shots.cjs                                   # popup screenshots: test/v14-popup-{en,id}-{light,dark}.png
 # Mode A on a real page (Alt+P; TOOLBAR=1 uses the toolbar action instead)
-PLAY_XY=636,250 node test/e2e.cjs <episode-url> 45          # click play, wait out the ad
+PLAY_XY=636,250 node test/e2e.cjs <url> 45                  # click play, wait out the ad
 node test/e2e.cjs https://plyr.io/ 0
 # Mode B: player in a cross-origin iframe
-python -I test/serve_ext.py test/modeb 8766 &               # serves 127.0.0.1 + localhost
-node test/e2e-modeb.cjs                                     # + source resize, setVolume, CC-on (track.html), Lengkap Vol
-node test/e2e-seek.cjs                                      # v1.3 timeline: Bersih media-session seeks, progress bar,
+npm run e2e:modeb                                           # = node test/e2e-modeb.cjs                                     # + source resize, setVolume, CC-on (track.html), Lengkap Vol
+npm run e2e:seek                                            # v1.3 timeline: Bersih media-session seeks, progress bar,
                                                             # mute mirror; Lengkap mini player (seek bar, J/K/L, time input)
-node test/e2e-hide.cjs                                      # site pauses on tab switch: PiP must keep playing
+npm run e2e:hide                                            # site pauses on tab switch: PiP must keep playing
 #   needs the Chrome test window visible and uncovered (occluded windows count as hidden)
 # EXT_DIR=<copy of the extension> node test/e2e-hide.cjs    # run against a mutated copy to prove the test fails
 ```
@@ -34,7 +41,7 @@ leaves its caption box empty, so captions cannot be verified there.
 
 | Case | Path | Result |
 |------|------|--------|
-| Shaka, top-level, captions in `.shaka-text-container` (reference site) | Alt+P | PiP opens, video plays, 4 distinct Indonesian lines in 15 s, close returns video playing |
+| Shaka, top-level, captions in `.shaka-text-container` (a Shaka-based player site) | Alt+P | PiP opens, video plays, 4 distinct Indonesian lines in 15 s, close returns video playing |
 | same | toolbar | same, no retry toast needed |
 | Plyr site (Video.js 10, native `showing` track) | Alt+P | PiP opens, video plays, close restores |
 | YouTube watch page | Alt+P | PiP + playback + restore OK (also during an ad); captions not verifiable |
@@ -44,7 +51,7 @@ leaves its caption box empty, so captions cannot be verified there.
 
 | Case | Path | Result |
 |------|------|--------|
-| Reference site, mode Bersih | popup "Buka PiP" | canvas PiP opens (activation survives the popup click), subtitles drawn |
+| Shaka-based player site, mode Bersih | popup "Buka PiP" | canvas PiP opens (activation survives the popup click), subtitles drawn |
 | same, tab switched away (normal throttling, sound on) | — | site's own pause-on-hide suppressed; video keeps playing 48→58 s, subtitles keep changing in PiP |
 | YouTube, mode Lengkap, Shift+N to next video | Alt+P | YouTube rewrites the video's inline size; video stays 0,0 full window; PiP title follows the new video |
 | Fixture `pauseOnHide=1` / `=window` | Alt+P | keeps playing hidden; `window` (page listener before ours) shows one ≤1 s auto-resumed blip by design |
