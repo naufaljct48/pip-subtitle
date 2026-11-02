@@ -1,3 +1,5 @@
 *.zip
 .DS_Store
 Thumbs.db
+test/e2e-profile/
+test/*.png

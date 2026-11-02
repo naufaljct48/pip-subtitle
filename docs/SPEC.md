@@ -29,9 +29,11 @@ icons/             16/48/128 PNG
 - **Alt+P** (`keydown` listener on `window`, capture phase, ignore when focus is in an
   input/textarea/contenteditable): toggles PiP in the frame that received the key. Real key
   press = user activation.
-- **Toolbar click**: background runs `chrome.scripting.executeScript({allFrames:true})` with a
-  function returning `window.__pipSubScore?.() ?? 0` per frame, picks the highest-scoring
-  frameId (>0), sends `{type:'pipsub:toggle'}` to that frame via `chrome.tabs.sendMessage`.
+- **Toolbar click**: user activation survives `chrome.scripting.executeScript` but not
+  `tabs.sendMessage`, so the first call goes to the top frame and toggles there directly when it
+  has a scoring video and no visible iframe larger than that video. Otherwise background scores
+  every frame (`window.__pipSubScore`), then calls `window.__pipSub.toggle()` in the winner with
+  a second `executeScript` (verified to still carry activation in Chrome 156).
   No video anywhere → set badge text `"!"` for 3 s.
 - If PiP fails with `NotAllowedError` (no user activation), show an in-page toast with a
   **"Buka PiP"** button; clicking it retries (real click = activation).

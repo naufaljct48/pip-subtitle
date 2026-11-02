@@ -1,0 +1,13 @@
+<!doctype html><title>Frame</title><body style="margin:0;background:#000">
+<div class="video-js" style="position:relative;width:880px;height:495px">
+  <video id="v" muted playsinline style="width:100%;height:100%"></video>
+  <div class="vjs-text-track-display" style="position:absolute;left:0;right:0;bottom:30px;text-align:center;color:#fff;font:24px sans-serif"><div><div class="vjs-text-track-cue"></div></div></div>
+</div>
+<script>
+const c=document.createElement('canvas'); c.width=640; c.height=360; const g=c.getContext('2d'); let n=0;
+setInterval(()=>{ g.fillStyle='hsl('+(n*7%360)+',60%,35%)'; g.fillRect(0,0,640,360); g.fillStyle='#fc0'; g.fillRect((n*9)%600,150,40,40); n++; },33);
+const v=document.getElementById('v'); v.srcObject=c.captureStream(30); v.play();
+const lines=['Baris satu dari iframe','Baris dua\ndengan dua baris','','Baris empat'];
+let i=0; setInterval(()=>{ document.querySelector('.vjs-text-track-cue').textContent=lines[i++%lines.length]; },1000);
+</script>
+</body>

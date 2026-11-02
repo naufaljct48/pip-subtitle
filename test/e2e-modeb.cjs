@@ -1,0 +1,54 @@
+// Mode B: player inside a cross-origin iframe -> canvas + proxy video PiP with subtitles burned in.
+const puppeteer = require(process.env.PUPPETEER_CORE || 'D:/laragon/www/dimensi-v2/node_modules/puppeteer-core');
+const path = require('path');
+const SCR = __dirname;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+(async () => {
+  const browser = await puppeteer.launch({
+    executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    headless: false, pipe: true, enableExtensions: true,
+    userDataDir: path.join(SCR, 'e2e-profile'),
+    defaultViewport: { width: 1280, height: 760 },
+    args: ['--autoplay-policy=no-user-gesture-required', '--window-size=1300,860'],
+  });
+  try {
+    await browser.installExtension('D:/tools/pip-subtitle-ext');
+    const page = (await browser.pages())[0];
+    page.on('console', (m) => { if (/PiP Subtitle/.test(m.text())) log('console', m.text().slice(0, 200)); });
+    await page.goto('http://127.0.0.1:8766/top.html', { waitUntil: 'load' });
+    await sleep(2500);
+    const frame = page.frames().find((f) => f.url().includes('localhost:8766/frame.html'));
+    log('frame found', !!frame);
+    // Focus the iframe without touching the video: click its black area below the player.
+    await page.mouse.click(400, 560);
+    await sleep(300);
+    await page.keyboard.down('Alt'); await page.keyboard.press('KeyP'); await page.keyboard.up('Alt');
+    await sleep(2000);
+    for (let i = 0; i < 4; i++) {
+      const s = await frame.evaluate(async () => {
+        const proxy = document.querySelector('video[data-pipsub]');
+        const pipEl = document.pictureInPictureElement;
+        let white = null;
+        if (proxy && proxy.videoWidth) {
+          const c = document.createElement('canvas'); c.width = proxy.videoWidth; c.height = proxy.videoHeight;
+          const g = c.getContext('2d'); g.drawImage(proxy, 0, 0);
+          const d = g.getImageData(0, Math.floor(c.height * 0.7), c.width, Math.floor(c.height * 0.3)).data;
+          white = 0; for (let k = 0; k < d.length; k += 4) if (d[k] > 240 && d[k + 1] > 240 && d[k + 2] > 240) white++;
+          if (!window.__shot) { window.__shot = c.toDataURL('image/png'); }
+        }
+        return { proxy: !!proxy, inPip: pipEl === proxy && !!proxy, size: proxy && [proxy.videoWidth, proxy.videoHeight], cue: document.querySelector('.vjs-text-track-cue').textContent, white };
+      });
+      log('sample', JSON.stringify(s));
+      await sleep(1000);
+    }
+    const shot = await frame.evaluate(() => window.__shot || null);
+    if (shot) { require('fs').writeFileSync(path.join(SCR, 'modeb-frame.png'), Buffer.from(shot.split(',')[1], 'base64')); log('proxy frame saved'); }
+    // Pause from the original -> proxy follows; then close with Alt+P.
+    log('pause sync', JSON.stringify(await frame.evaluate(async () => { const v = document.getElementById('v'); v.pause(); await new Promise((r) => setTimeout(r, 300)); return { proxyPaused: document.querySelector('video[data-pipsub]')?.paused }; })));
+    await page.keyboard.down('Alt'); await page.keyboard.press('KeyP'); await page.keyboard.up('Alt');
+    await sleep(1000);
+    log('after close', JSON.stringify(await frame.evaluate(() => ({ proxy: !!document.querySelector('video[data-pipsub]'), pipEl: !!document.pictureInPictureElement }))));
+  } catch (e) { log('ERROR', e.stack || e); } finally { await browser.close(); }
+})();

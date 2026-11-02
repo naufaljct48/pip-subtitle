@@ -2,8 +2,8 @@
 
 | # | Task | Tier | After | Status |
 |---|------|------|-------|--------|
-| 1 | Scaffold | light | — | todo |
-| 2 | content.js (both modes, sources, UI) | careful | 1 | todo |
+| 1 | Scaffold | light | — | done |
+| 2 | content.js (both modes, sources, UI) | careful | 1 | done |
 
 ## 1. Scaffold
 `manifest.json` (MV3, name "PiP Subtitle", version 1.0.0, description in Indonesian,

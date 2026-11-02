@@ -4,6 +4,7 @@ Stack: Chrome MV3, plain JavaScript, no build step, no dependencies.
 
 Commands:
 - Syntax check: `node --check background.js && node --check content.js`
+- Tests: see `docs/TESTING.md` (parser smoke + real-Chrome e2e via puppeteer-core)
 - Run: chrome://extensions → Developer mode → Load unpacked → this folder; reload after edits.
 
 Conventions:
