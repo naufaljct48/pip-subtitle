@@ -30,7 +30,12 @@ into the PiP window.
 
 ## Install
 
-- **Chrome Web Store:** TODO (link once published).
+- **Chrome Web Store:** coming soon.
+- **From a release (Load unpacked):**
+  1. Download `pip-subtitle-<version>.zip` from the
+     [latest release](https://github.com/naufaljct48/pip-subtitle/releases/latest) and unzip it.
+  2. Open `chrome://extensions` and turn on **Developer mode**.
+  3. Click **Load unpacked** and choose the unzipped folder.
 - **From source (Load unpacked):**
   1. Download or clone this repository.
   2. Open `chrome://extensions` and turn on **Developer mode**.
