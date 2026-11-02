@@ -45,6 +45,16 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     }
     const shot = await frame.evaluate(() => window.__shot || null);
     if (shot) { require('fs').writeFileSync(path.join(SCR, 'modeb-frame.png'), Buffer.from(shot.split(',')[1], 'base64')); log('proxy frame saved'); }
+    // Source changes aspect mid-PiP (next video): the canvas and so the proxy stream must follow.
+    const before = await frame.evaluate(() => { const p = document.querySelector('video[data-pipsub]'); return p && [p.videoWidth, p.videoHeight]; });
+    await frame.evaluate(() => window.resizeSource());
+    await sleep(1500);
+    const after = await frame.evaluate(() => {
+      const p = document.querySelector('video[data-pipsub]');
+      return { size: p && [p.videoWidth, p.videoHeight], src: [document.getElementById('v').videoWidth, document.getElementById('v').videoHeight], inPip: document.pictureInPictureElement === p && !!p };
+    });
+    const resizeOk = !!(after.size && after.size[0] === 480 && after.size[1] === 480 && after.inPip);
+    log('resize', resizeOk ? 'OK' : 'FAIL', JSON.stringify({ before, ...after }));
     // Pause from the original -> proxy follows; then close with Alt+P.
     log('pause sync', JSON.stringify(await frame.evaluate(async () => { const v = document.getElementById('v'); v.pause(); await new Promise((r) => setTimeout(r, 300)); return { proxyPaused: document.querySelector('video[data-pipsub]')?.paused }; })));
     await page.keyboard.down('Alt'); await page.keyboard.press('KeyP'); await page.keyboard.up('Alt');

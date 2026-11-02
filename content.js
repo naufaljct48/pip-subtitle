@@ -26,7 +26,9 @@
 
   const SCALE_MIN = 0.6;
   const SCALE_MAX = 2.0;
-  const settings = { fontScale: 1, ccOn: true };
+  // mode: 'clean' = native PiP of a canvas with burned-in subtitles, 'full' = Document PiP.
+  const settings = { fontScale: 1, ccOn: true, mode: 'clean', autoPip: true };
+  const settingsListeners = new Set();
 
   function clampScale(v) {
     const n = Number(v);
@@ -34,24 +36,43 @@
     return Math.round(Math.min(SCALE_MAX, Math.max(SCALE_MIN, n)) * 10) / 10;
   }
 
+  function applyStored(s) {
+    const v = s || {};
+    settings.fontScale = clampScale(v.fontScale == null ? 1 : v.fontScale);
+    settings.ccOn = v.ccOn !== false;
+    settings.mode = v.mode === 'full' ? 'full' : 'clean';
+    settings.autoPip = v.autoPip !== false;
+    for (const fn of settingsListeners) {
+      try { fn(); } catch (err) { console.warn('[PiP Subtitle]', err); }
+    }
+  }
+
   function loadSettings() {
     if (!storageOk()) return;
     try {
       chrome.storage.local.get('pipsub', (res) => {
-        if (chrome.runtime.lastError || !res || !res.pipsub) return;
-        settings.fontScale = clampScale(res.pipsub.fontScale);
-        settings.ccOn = res.pipsub.ccOn !== false;
+        if (chrome.runtime.lastError || !res) return;
+        applyStored(res.pipsub);
+      });
+      // The popup and other tabs write here; apply their changes live.
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.pipsub) applyStored(changes.pipsub.newValue);
       });
     } catch (_) { /* extension context gone */ }
   }
 
+  // Only the keys this script edits are written; the rest of the stored object is kept.
   function saveSettings() {
     if (!storageOk()) return;
     try {
-      const p = chrome.storage.local.set({
-        pipsub: { fontScale: settings.fontScale, ccOn: settings.ccOn },
+      chrome.storage.local.get('pipsub', (res) => {
+        if (chrome.runtime.lastError) return;
+        const prev = (res && res.pipsub) || {};
+        const p = chrome.storage.local.set({
+          pipsub: { ...prev, fontScale: settings.fontScale, ccOn: settings.ccOn },
+        });
+        if (p && typeof p.catch === 'function') p.catch(() => {});
       });
-      if (p && typeof p.catch === 'function') p.catch(() => {});
     } catch (_) { /* extension context gone */ }
   }
 
@@ -61,9 +82,10 @@
 
   const isOurs = (el) => !!(el && el.closest && el.closest('[data-pipsub]'));
 
+  // Only used by our PiP controls, so a pause here is the user's own.
   function togglePlay(v) {
     if (v.paused) v.play().catch(() => {});
-    else v.pause();
+    else { markUserPause(); v.pause(); }
   }
 
   function seekBy(v, delta) {
@@ -482,7 +504,72 @@
 
   let session = null; // { kind: 'doc' | 'canvas' | 'native' | 'debug', video, source?, close() }
   let opening = false;
+  let openingVideo = null;
   let docPipBroken = false;
+
+  // ==== Keep playing while the tab is hidden ====
+  // Some sites pause their own video on visibilitychange, which freezes the PiP the user
+  // switched tabs to watch. While a session is open or opening we (1) hide that event from the
+  // page and (2) undo a pause that lands right after the tab was hidden.
+
+  let hiddenAt = -Infinity;
+  let resumedForHide = null;
+  let userPauseAt = -Infinity;
+  const lastPause = { video: null, at: -Infinity };
+
+  function markUserPause() { userPauseAt = performance.now(); }
+
+  const guardActive = () => opening || !!(session && session.kind !== 'debug');
+
+  // Window capture runs before the page's own listeners on document (where sites usually
+  // listen), so stopping it here hides the event from them. Listeners a page added on window
+  // capture before us still run; the auto-resume below covers those. Registered at load time
+  // (document_idle) in every frame; inert unless this frame has a session.
+  window.addEventListener('visibilitychange', (e) => {
+    if (document.visibilityState === 'hidden') hiddenAt = performance.now();
+    if (guardActive()) e.stopImmediatePropagation();
+  }, true);
+
+  // A pause within 1.5 s of hiding that we or the user did not ask for is the site reacting
+  // to the tab switch: resume once per hide.
+  function pausedByHide(video, at) {
+    return document.hidden && at - hiddenAt < 1500 && at - userPauseAt > 1000 &&
+      resumedForHide !== hiddenAt && !!video;
+  }
+
+  // Page videos paused just before auto PiP fires (no session yet, so not guarded).
+  document.addEventListener('pause', (e) => {
+    if (!e.target || e.target.tagName !== 'VIDEO') return;
+    lastPause.video = e.target;
+    lastPause.at = performance.now();
+  }, true);
+
+  const guardedVideos = new WeakSet();
+  function guardVideo(video) {
+    if (guardedVideos.has(video)) return;
+    guardedVideos.add(video);
+    video.addEventListener('pause', () => {
+      const now = performance.now();
+      lastPause.video = video;
+      lastPause.at = now;
+      const mine = (session && session.kind !== 'debug' && session.video === video) ||
+        (opening && openingVideo === video);
+      if (!mine || !pausedByHide(video, now)) return;
+      resumedForHide = hiddenAt;
+      video.play().catch(() => {});
+    });
+  }
+
+  // Top frame: 'full' → Document PiP; 'clean' → canvas PiP, except videos a canvas cannot read
+  // (cross-origin, EME/DRM, tainted), which Document PiP can still move. Iframes: canvas PiP.
+  function openPip(video) {
+    guardVideo(video);
+    openingVideo = video;
+    const docPipOk = window === window.top && !!window.documentPictureInPicture && !docPipBroken;
+    if (!docPipOk) return openCanvasPip(video, openNativePip);
+    if (settings.mode === 'full' || looksCrossOrigin(video) || video.mediaKeys) return openDocPip(video);
+    return openCanvasPip(video, openDocPip);
+  }
 
   async function toggle() {
     if (session) { session.close(); return; }
@@ -491,11 +578,7 @@
     if (!pick) { toast(COPY.noVideo); return; }
     opening = true;
     try {
-      if (window === window.top && window.documentPictureInPicture && !docPipBroken) {
-        await openDocPip(pick.video);
-      } else {
-        await openCanvasPip(pick.video);
-      }
+      await openPip(pick.video);
     } catch (err) {
       console.warn('[PiP Subtitle]', err);
     } finally {
@@ -515,7 +598,10 @@
     html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
     body{position:relative}
     [hidden]{display:none!important}
-    video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+    video{position:absolute!important;inset:0!important;left:0!important;top:0!important;
+      right:auto!important;bottom:auto!important;width:100%!important;height:100%!important;
+      max-width:none!important;max-height:none!important;margin:0!important;
+      transform:none!important;object-fit:contain!important}
     .sub{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);width:max-content;
       max-width:92%;text-align:center;white-space:pre-line;color:#fff;
       font:600 calc(5.5vh * var(--scale)) system-ui,sans-serif;line-height:1.3;
@@ -531,6 +617,8 @@
     .bar button:hover{background:rgba(0,0,0,.85)}
     .bar button.off{opacity:.45}`;
 
+  // Players such as YouTube rewrite the video's inline px box on every new video; the
+  // !important rules in DOC_CSS win over that, this attribute only covers the first paint.
   const VIDEO_PIP_STYLE =
     'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;margin:0;padding:0;' +
     'border:0;max-width:none;max-height:none;transform:none;background:#000';
@@ -643,8 +731,9 @@
       else if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(video, 5); }
     }, true);
 
+    settingsListeners.add(sync);
     sync();
-    return { render, destroy() { clearTimeout(hideTimer); } };
+    return { render, destroy() { clearTimeout(hideTimer); settingsListeners.delete(sync); } };
   }
 
   async function openDocPip(video) {
@@ -665,11 +754,13 @@
       // API present but unusable (e.g. embedded browsers: "no window"): use Mode B from now on.
       console.warn('[PiP Subtitle]', err);
       docPipBroken = true;
-      return openCanvasPip(video);
+      return openCanvasPip(video, openNativePip);
     }
     if (!video.isConnected || !video.parentNode) { pipWin.close(); return; }
 
     const doc = pipWin.document;
+    // Chrome's bar always shows the origin; the title shows in the taskbar / Alt+Tab.
+    try { doc.title = document.title; } catch (_) { /* no title */ }
     const placeholder = document.createComment('pipsub-placeholder');
     video.parentNode.insertBefore(placeholder, video.nextSibling);
     const origStyle = video.getAttribute('style');
@@ -725,7 +816,9 @@
     ui.render(source.text);
 
     watch = setInterval(() => {
-      if (!placeholder.isConnected || !doc.contains(video)) sess.close();
+      if (!placeholder.isConnected || !doc.contains(video)) { sess.close(); return; }
+      // SPA players (YouTube autoplay) change the page title per video.
+      if (doc.title !== document.title) doc.title = document.title;
     }, 500);
   }
 
@@ -782,15 +875,35 @@
     ctx.restore();
   }
 
+  function canvasSizeFor(vw, vh) {
+    const w = vw || 640;
+    const h = vh || 360;
+    const W = Math.min(w, 1280);
+    return [W, Math.max(2, Math.round((h * W) / w))];
+  }
+
   function startCanvas(video) {
-    const vw = video.videoWidth || 640;
-    const vh = video.videoHeight || 360;
-    const W = Math.min(vw, 1280);
-    const H = Math.max(2, Math.round((vh * W) / vw));
+    let [W, H] = canvasSizeFor(video.videoWidth, video.videoHeight);
     const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext('2d');
+
+    // Next video or quality switch: follow the new intrinsic size, because the native PiP
+    // window locks to the stream's aspect ratio and would otherwise letterbox.
+    let srcW = video.videoWidth;
+    let srcH = video.videoHeight;
+    const fitToVideo = () => {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh || (vw === srcW && vh === srcH)) return;
+      srcW = vw;
+      srcH = vh;
+      [W, H] = canvasSizeFor(vw, vh);
+      if (canvas.width !== W) canvas.width = W;
+      if (canvas.height !== H) canvas.height = H;
+    };
+    video.addEventListener('resize', fitToVideo);
     const source = createSubtitleSource(video, {
       getAnchor: () => video.parentNode,
       avoid: () => [video],
@@ -799,6 +912,7 @@
     source.refresh();
 
     const draw = () => {
+      fitToVideo();
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
       if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
@@ -824,7 +938,12 @@
     return {
       canvas,
       source,
-      stop() { running = false; clearTimeout(timer); source.destroy(); },
+      stop() {
+        running = false;
+        clearTimeout(timer);
+        video.removeEventListener('resize', fitToVideo);
+        source.destroy();
+      },
     };
   }
 
@@ -862,15 +981,16 @@
     toast(COPY.crossOrigin);
   }
 
-  async function openCanvasPip(video) {
-    if (looksCrossOrigin(video)) return openNativePip(video);
+  // onUnreadable: where to go when the canvas cannot read the video (still within activation).
+  async function openCanvasPip(video, onUnreadable = openNativePip) {
+    if (looksCrossOrigin(video)) return onUnreadable(video);
     const r = startCanvas(video);
     let stream;
     try {
       stream = r.canvas.captureStream(30);
     } catch (err) {
       r.stop();
-      if (err && err.name === 'SecurityError') return openNativePip(video);
+      if (err && err.name === 'SecurityError') return onUnreadable(video);
       throw err;
     }
 
@@ -888,11 +1008,14 @@
     const onOrigPause = () => { proxy.pause(); };
     const onProxyPlay = () => { if (video.paused) video.play().catch(() => {}); };
     const onProxyPause = () => {
-      if (document.pictureInPictureElement === proxy && !video.paused) video.pause();
+      if (document.pictureInPictureElement === proxy && !video.paused) {
+        markUserPause();
+        video.pause();
+      }
     };
+    // play/pause stay with the page's own handlers (overriding them broke media keys after
+    // close); the proxy's play/pause events already sync to the original.
     const SESSION_ACTIONS = {
-      play: () => video.play().catch(() => {}),
-      pause: () => video.pause(),
       seekbackward: () => seekBy(video, -10),
       seekforward: () => seekBy(video, 10),
     };
@@ -969,6 +1092,44 @@
 
   window.addEventListener('pagehide', () => { if (session) session.close(); });
 
+  // Auto PiP: Chrome calls this media session action when the user leaves a tab that is playing
+  // (only for sites with enough media engagement). Top frame only; checked every 2 s.
+  let autoPipOn = false;
+  function onAutoPip() {
+    if (session || opening) return;
+    const pick = pickVideo();
+    if (!pick) return;
+    const v = pick.video;
+    // The site may already have paused it in reaction to the tab switch: that still counts as
+    // playing, and it is resumed.
+    const hidePaused = v.paused && lastPause.video === v && pausedByHide(v, lastPause.at);
+    if (v.paused && !hidePaused) return;
+    opening = true;
+    if (hidePaused) {
+      resumedForHide = hiddenAt;
+      v.play().catch(() => {});
+    }
+    // Called synchronously: the permission Chrome grants lasts only while this handler runs.
+    let p;
+    try { p = openPip(v); } catch (err) { p = Promise.reject(err); }
+    p.catch((err) => console.warn('[PiP Subtitle]', err)).finally(() => { opening = false; });
+  }
+  function syncAutoPip() {
+    const ms = navigator.mediaSession;
+    if (!ms) return;
+    const want = settings.autoPip && (!!session || !!pickVideo());
+    if (want === autoPipOn) return;
+    try {
+      ms.setActionHandler('enterpictureinpicture', want ? onAutoPip : null);
+      autoPipOn = want;
+    } catch (_) { /* action unsupported in this Chrome */ }
+  }
+  if (window === window.top) {
+    settingsListeners.add(syncAutoPip);
+    setInterval(syncAutoPip, 2000);
+    syncAutoPip();
+  }
+
   if (extAlive() && chrome.runtime.onMessage) {
     try {
       chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -979,10 +1140,10 @@
     } catch (_) { /* extension context gone */ }
   }
 
-  // ==== Exposed hooks (background frame picking + testing) ====
+  // ==== Exposed hooks (popup frame picking + testing) ====
 
   window.__pipSubScore = () => {
-    // An open session must win so a toolbar click reaches this frame to close it.
+    // An open session must win so the popup's button reaches this frame to close it.
     if (session && session.kind !== 'debug') return Number.MAX_SAFE_INTEGER;
     const pick = pickVideo();
     return pick ? pick.score : 0;

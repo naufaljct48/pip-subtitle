@@ -3,3 +3,4 @@
 Thumbs.db
 test/e2e-profile/
 test/*.png
+test/v11-*

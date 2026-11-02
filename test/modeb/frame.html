@@ -7,6 +7,16 @@
 const c=document.createElement('canvas'); c.width=640; c.height=360; const g=c.getContext('2d'); let n=0;
 setInterval(()=>{ g.fillStyle='hsl('+(n*7%360)+',60%,35%)'; g.fillRect(0,0,640,360); g.fillStyle='#fc0'; g.fillRect((n*9)%600,150,40,40); n++; },33);
 const v=document.getElementById('v'); v.srcObject=c.captureStream(30); v.play();
+// Simulates "next video" with another aspect: 640x360 -> 480x480 (?resize=1 does it after 3 s).
+window.resizeSource=()=>{ c.width=480; c.height=480; };
+if(new URLSearchParams(location.search).get('resize')==='1') setTimeout(window.resizeSource,3000);
+// Like the reference site: pause our own video when the tab is hidden. ?pauseOnHide=1 listens
+// on document (bubbling, as most sites do); ?pauseOnHide=window listens on window capture and
+// is registered before the extension, so only the extension's auto-resume can undo it.
+const poh=new URLSearchParams(location.search).get('pauseOnHide');
+const pauseIfHidden=()=>{ if(document.hidden) v.pause(); };
+if(poh==='1') document.addEventListener('visibilitychange',pauseIfHidden);
+if(poh==='window') window.addEventListener('visibilitychange',pauseIfHidden,true);
 const lines=['Baris satu dari iframe','Baris dua\ndengan dua baris','','Baris empat'];
 let i=0; setInterval(()=>{ document.querySelector('.vjs-text-track-cue').textContent=lines[i++%lines.length]; },1000);
 </script>
