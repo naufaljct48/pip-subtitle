@@ -133,6 +133,20 @@ while a session is open (so the popup's button reaches that frame to close it).
 8. Unreadable video (`SecurityError` from `captureStream`, or cross-origin looking `src`) →
    Mode A in the top frame (mode `clean`), otherwise `video.requestPictureInPicture()` on the
    original + toast "Subtitle tidak bisa ditampilkan di player ini (video lintas-domain)".
+9. Page placeholder (canvas and native sessions, top frame and iframes): while PiP is open, the
+   original video's box in the page is covered so the picture does not play twice. A
+   `<pipsub-placeholder data-pipsub>` host is inserted as the video's next sibling,
+   `position:absolute` (`fixed` for a fixed video) at the video's `offsetLeft/Top/Width/Height`,
+   corrected by the measured `getBoundingClientRect` gap when the offset parent is not its
+   containing block; z-index auto, so it paints above the video but below later positioned
+   siblings (the player's controls and caption layer); `pointer-events:none`, so clicks reach
+   the player. Host styles inline with `all:initial` + `!important`; content in a closed shadow
+   root: black, a 28 px PiP glyph (inline SVG) and the `inPip` text (13 px, white 70 %), glyph
+   and text hidden below 160×90. Kept in place by a ResizeObserver on the video, window `resize`
+   and a 1 s interval; the text follows `lang` live. Removed whenever the session ends. The video
+   itself is never hidden, paused, resized or made transparent (Chrome may stop producing frames
+   for an invisible video, and the canvas reads it). Full mode needs none: the video moves into
+   the PiP window.
 
 ### Auto PiP
 Top frame only. Every 2 s (and on settings change): when `autoPip` is on and the page has a

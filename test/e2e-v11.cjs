@@ -73,6 +73,8 @@ const PROXY_STATS = `(() => {
 
     if (mode === 'clean') {
       for (let i = 0; i < 4; i++) { log('visible', await page.evaluate(PROXY_STATS)); await sleep(1500); }
+      await page.screenshot({ path: path.join(OUT, 'v11-clean-page.png') });
+      log('placeholder', await page.evaluate(() => { const v = [...document.querySelectorAll('video')].find((x) => !x.hasAttribute('data-pipsub')); const ph = v && v.nextElementSibling; const r = (e) => e && [e.getBoundingClientRect()].map((b) => [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)])[0]; return JSON.stringify({ isOurs: !!(ph && ph.hasAttribute('data-pipsub')), video: r(v), box: r(ph), playing: v && !v.paused }); }));
       const shot = await page.evaluate(() => window.__lastShot);
       if (shot) fs.writeFileSync(path.join(OUT, 'v11-clean-frame.jpg'), Buffer.from(shot.split(',')[1], 'base64'));
       if (process.env.CAPTURE) log('capture', await page.evaluate(() => { const o = [...document.querySelectorAll('video')].find((v) => !v.hasAttribute('data-pipsub')); window.__cap = o.captureStream(); return window.__cap.getTracks().length; }));

@@ -25,6 +25,8 @@ var PIPSUB_STRINGS = {
     playPause: 'Play/Pause (K)',
     seekBar: 'Video position',
     jumpTo: 'Jump to time',
+    // Page placeholder while the video plays in PiP
+    inPip: 'Playing in Picture-in-Picture',
     // Popup
     openPip: 'Open PiP',
     modeLabel: 'Display mode',
@@ -65,6 +67,7 @@ var PIPSUB_STRINGS = {
     playPause: 'Putar/jeda (K)',
     seekBar: 'Posisi video',
     jumpTo: 'Klik untuk lompat ke waktu tertentu',
+    inPip: 'Diputar di Picture-in-Picture',
     openPip: 'Buka PiP',
     modeLabel: 'Mode tampilan',
     modeClean: 'Bersih',

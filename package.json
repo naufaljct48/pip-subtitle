@@ -1,6 +1,6 @@
 {
   "name": "pip-subtitle",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "description": "Chrome extension: Picture-in-Picture that keeps the player's subtitles.",
   "license": "MIT",

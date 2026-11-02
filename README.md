@@ -24,6 +24,8 @@ into the PiP window.
 - **Automatic PiP when you switch tabs** (when Chrome allows it, see below).
 - **Turns on the player's captions** if they are off when PiP opens.
 - **Keeps playing in PiP** on sites that pause their video when the tab is hidden.
+- **No double picture:** in Clean mode the video on the page is covered by a black "Playing in
+  Picture-in-Picture" box while PiP is open, like Chrome's own PiP.
 - **Volume control** in the popup.
 - **English and Indonesian** interface (follows the browser, or pick one).
 - **No data collected**, no network requests, no remote code. See [PRIVACY.md](PRIVACY.md).

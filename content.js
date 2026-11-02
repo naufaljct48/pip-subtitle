@@ -1334,6 +1334,99 @@
     try { return new URL(src, location.href).origin !== location.origin; } catch (_) { return false; }
   }
 
+  // ==== Page placeholder (canvas / native sessions) ====
+  // While the video plays in PiP, a black box with "Playing in Picture-in-Picture" covers the
+  // page's copy, like Chrome's own PiP placeholder. The video itself is never hidden, paused or
+  // resized: Chrome may stop producing frames for an invisible video, and the canvas reads it.
+  // The box is the video's next sibling (z-index auto: above the video, below later positioned
+  // siblings such as the player's controls and caption layer) and lets clicks through.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const PLACEHOLDER_CSS = `
+    .box{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:8px;overflow:hidden;
+      color:rgba(255,255,255,.7);font:13px/1.3 system-ui,sans-serif;text-align:center}
+    .box.small .glyph,.box.small .text{display:none}
+    .glyph{width:28px;height:28px;flex:0 0 auto}
+    .text{padding:0 12px}`;
+
+  function pipGlyph() {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 28 28');
+    svg.setAttribute('class', 'glyph');
+    svg.setAttribute('aria-hidden', 'true');
+    const screen = document.createElementNS(SVG_NS, 'rect');
+    for (const [k, v] of Object.entries({ x: 2.5, y: 5.5, width: 23, height: 17, rx: 2, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 })) screen.setAttribute(k, v);
+    const mini = document.createElementNS(SVG_NS, 'rect');
+    for (const [k, v] of Object.entries({ x: 14, y: 13.5, width: 8.5, height: 6, rx: 1, fill: 'currentColor' })) mini.setAttribute(k, v);
+    svg.append(screen, mini);
+    return svg;
+  }
+
+  function createPlaceholder(video) {
+    const parent = video.parentNode;
+    if (!parent) return { destroy() {} };
+    const host = document.createElement('pipsub-placeholder');
+    host.setAttribute('data-pipsub', '');
+    const root = host.attachShadow({ mode: 'closed' });
+    const style = document.createElement('style');
+    style.textContent = PLACEHOLDER_CSS;
+    const box = document.createElement('div');
+    box.className = 'box';
+    const text = document.createElement('div');
+    text.className = 'text';
+    box.append(pipGlyph(), text);
+    root.append(style, box);
+    parent.insertBefore(host, video.nextSibling);
+
+    const setBox = (position, left, top, width, height) => {
+      host.style.cssText =
+        'all:initial!important;display:block!important;box-sizing:border-box!important;' +
+        `position:${position}!important;left:${left}px!important;top:${top}px!important;` +
+        `width:${width}px!important;height:${height}px!important;margin:0!important;` +
+        'padding:0!important;border:0!important;pointer-events:none!important;' +
+        'z-index:auto!important;transform:none!important;';
+    };
+    const place = () => {
+      if (!video.isConnected || !host.isConnected) return;
+      const fixed = getComputedStyle(video).position === 'fixed';
+      const w = video.offsetWidth;
+      const h = video.offsetHeight;
+      let left = fixed ? 0 : video.offsetLeft;
+      let top = fixed ? 0 : video.offsetTop;
+      setBox(fixed ? 'fixed' : 'absolute', left, top, w, h);
+      // offsetLeft/Top are relative to the video's offsetParent, which is not always the box's
+      // containing block (fixed video, transformed ancestor): correct by the measured gap,
+      // scaled back to CSS px when an ancestor is scaled.
+      const vr = video.getBoundingClientRect();
+      const hr = host.getBoundingClientRect();
+      const scale = w && hr.width ? hr.width / w : 1;
+      if (Math.abs(vr.left - hr.left) > 0.5 || Math.abs(vr.top - hr.top) > 0.5) {
+        left += (vr.left - hr.left) / scale;
+        top += (vr.top - hr.top) / scale;
+        setBox(fixed ? 'fixed' : 'absolute', left, top, w, h);
+      }
+      box.classList.toggle('small', w < 160 || h < 90);
+    };
+    const setText = () => { text.textContent = T('inPip'); };
+    setText();
+    place();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
+    if (ro) ro.observe(video);
+    window.addEventListener('resize', place);
+    const timer = setInterval(place, 1000);
+    settingsListeners.add(setText);
+    return {
+      destroy() {
+        clearInterval(timer);
+        if (ro) ro.disconnect();
+        window.removeEventListener('resize', place);
+        settingsListeners.delete(setText);
+        host.remove();
+      },
+    };
+  }
+
   async function openNativePip(video) {
     let ended = false;
     const sess = {
@@ -1345,10 +1438,12 @@
       },
     };
     let timeline = null;
+    let placeholder = null;
     function end() {
       if (ended) return;
       ended = true;
       if (timeline) timeline.detach();
+      if (placeholder) placeholder.destroy();
       video.removeEventListener('leavepictureinpicture', end);
       if (session === sess) session = null;
     }
@@ -1361,6 +1456,7 @@
       return;
     }
     video.addEventListener('leavepictureinpicture', end);
+    placeholder = createPlaceholder(video);
     timeline = attachTimeline(video);
     sess.seekActions = timeline.actions;
     toast(T('crossOrigin'));
@@ -1428,6 +1524,7 @@
     // play/pause stay with the page's own handlers (overriding them broke media keys after
     // close); the proxy's play/pause events already sync to the original.
     let timeline = null;
+    let placeholder = null;
 
     let done = false;
     let watch = 0;
@@ -1438,6 +1535,7 @@
       clearTimeout(pauseTimer);
       r.stop();
       if (timeline) timeline.detach();
+      if (placeholder) placeholder.destroy();
       video.removeEventListener('play', onOrigPlay);
       video.removeEventListener('pause', onOrigPause);
       video.removeEventListener('seeked', onOrigSeeked);
@@ -1486,6 +1584,7 @@
     proxy.addEventListener('play', onProxyPlay);
     proxy.addEventListener('pause', onProxyPause);
     proxy.addEventListener('leavepictureinpicture', cleanup);
+    placeholder = createPlaceholder(video);
     timeline = attachTimeline(video);
     sess.seekActions = timeline.actions;
     watch = setInterval(() => { if (!video.isConnected) sess.close(); }, 500);
