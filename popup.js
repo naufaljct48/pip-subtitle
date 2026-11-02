@@ -234,6 +234,8 @@ $('mei-link').addEventListener('click', (e) => {
   if (hasScripting) chrome.tabs.create({ url: 'chrome://media-engagement' });
 });
 
+$('version').textContent = 'v' + (hasChrome && chrome.runtime.getManifest ? chrome.runtime.getManifest().version : '');
+
 render();
 loadVolume();
 if (hasStorage) {

@@ -43,6 +43,8 @@ var PIPSUB_STRINGS = {
     noVideoTab: 'No video to PiP in this tab.',
     langLabel: 'Language',
     langAuto: 'Auto',
+    openSource: 'Open source',
+    starGithub: '★ Star on GitHub',
   },
   id: {
     noVideo: 'Tidak ada video yang bisa di-PiP di halaman ini.',
@@ -80,6 +82,8 @@ var PIPSUB_STRINGS = {
     noVideoTab: 'Tidak ada video yang bisa di-PiP di tab ini.',
     langLabel: 'Bahasa',
     langAuto: 'Auto',
+    openSource: 'Open source',
+    starGithub: '★ Bintangi di GitHub',
   },
 };
 

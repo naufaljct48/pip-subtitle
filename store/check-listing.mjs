@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const md = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'listing.md'), 'utf8');
+// Normalize CRLF: Windows checkouts with core.autocrlf turn the file's line endings into \r\n.
+const md = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'listing.md'), 'utf8')
+  .replace(/\r\n/g, '\n');
 const section = (title) => {
   const start = md.indexOf(title);
   if (start < 0) throw new Error(`missing section ${title}`);
