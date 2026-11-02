@@ -20,6 +20,12 @@
     cc: 'Subtitle on/off',
     loadFile: 'Muat file subtitle (.srt/.vtt)',
     volume: 'Volume (↑/↓)',
+    back15: 'Mundur 15 detik (J)',
+    playPause: 'Putar/jeda (K)',
+    fwd15: 'Maju 15 detik (L)',
+    seekBar: 'Posisi video',
+    jumpTo: 'Klik untuk lompat ke waktu tertentu',
+    mute: 'Bisukan / nyalakan suara',
     back: 'Mundurkan subtitle 0,5 detik',
     fwd: 'Majukan subtitle 0,5 detik',
     unload: 'Lepas file subtitle',
@@ -685,7 +691,32 @@
     .bar button{cursor:pointer}
     .bar button:hover{background:rgba(0,0,0,.85)}
     .bar button.off{opacity:.45}
-    .bar .vol{width:64px;margin:0 2px 0 0;accent-color:#fff;cursor:pointer}`;
+    .ctl{position:absolute;left:0;right:0;bottom:0;padding:18px 10px 8px;display:flex;
+      flex-direction:column;gap:4px;background:linear-gradient(transparent,rgba(0,0,0,.75));
+      z-index:2147483646;opacity:0;pointer-events:none;transition:opacity .15s}
+    .ctl.show{opacity:1;pointer-events:auto}
+    .ctl .seekwrap{position:relative}
+    .ctl .seek{display:block;width:100%;margin:0;accent-color:#fff;cursor:pointer}
+    .ctl .tip{position:absolute;bottom:100%;margin-bottom:4px;transform:translateX(-50%);
+      padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.8);color:#fff;
+      font:12px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;
+      pointer-events:none}
+    .ctl .row{display:flex;align-items:center;gap:2px}
+    .ctl .spacer{flex:1}
+    .ctl button{background:transparent;color:#fff;font:13px/1 system-ui,sans-serif;border:0;
+      border-radius:4px;padding:4px 6px;margin:0;min-width:28px;cursor:pointer;
+      font-variant-numeric:tabular-nums}
+    .ctl button:hover,.ctl .time:hover{background:rgba(255,255,255,.15)}
+    .ctl button.off{opacity:.5}
+    .ctl .time{margin-left:6px;padding:4px;border-radius:4px;color:#fff;cursor:text;
+      font:13px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums}
+    .ctl .timein{width:9ch;margin-left:6px;padding:3px 4px;border:1px solid rgba(255,255,255,.5);
+      border-radius:4px;background:rgba(0,0,0,.6);color:#fff;outline:none;
+      font:13px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums}
+    .ctl .timein.bad{border-color:#f87171;animation:pipsub-shake .3s}
+    @keyframes pipsub-shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+    .ctl .vol{width:72px;margin:0 0 0 4px;accent-color:#fff;cursor:pointer}
+    body.ctl-on .sub{bottom:max(7%,calc(var(--ctlh,64px) + 8px))}`;
 
   // Players such as YouTube rewrite the video's inline px box on every new video; the
   // !important rules in DOC_CSS win over that, this attribute only covers the first paint.
@@ -743,7 +774,59 @@
       sync();
       if (settings.ccOn) scheduleCaptionsOn(sess);
     });
-    const bVol = button('Vol', COPY.volume, () => {
+    const bFile = button('.srt', COPY.loadFile, () => input.click());
+    const bBack = button('−0.5s', COPY.back, () => { source.shiftOffset(-0.5); sync(); });
+    const lbl = make('span', 'lbl');
+    const bFwd = button('+0.5s', COPY.fwd, () => { source.shiftOffset(0.5); sync(); });
+    const bUnload = button('✕', COPY.unload, () => { source.clearExternal(); sync(); });
+    bar.append(bSmaller, bBigger, bCC, bFile, bBack, lbl, bFwd, bUnload);
+
+    // ---- Bottom mini player: seek bar on top; play, −15, +15, time · spacer · Vol, volume.
+    // Listeners on the video are removed in destroy(): it goes back to the page on close.
+    const ctl = make('div', 'ctl');
+    const seekWrap = make('div', 'seekwrap');
+    const seekRange = make('input', 'seek');
+    seekRange.type = 'range';
+    seekRange.min = '0';
+    seekRange.step = 'any';
+    seekRange.tabIndex = -1;
+    seekRange.setAttribute('aria-label', COPY.seekBar);
+    const tip = make('div', 'tip');
+    tip.hidden = true;
+    seekWrap.append(seekRange, tip);
+    let dragging = false;
+    seekRange.addEventListener('pointerdown', () => { dragging = true; });
+    // Scrub with fastSeek while dragging; land exactly on change.
+    seekRange.addEventListener('input', () => seekVideo(video, Number(seekRange.value), dragging));
+    seekRange.addEventListener('change', () => {
+      dragging = false;
+      seekVideo(video, Number(seekRange.value));
+      seekRange.blur();
+    });
+    seekRange.addEventListener('click', (e) => e.stopPropagation());
+    seekRange.addEventListener('pointermove', (e) => {
+      if (!seekable(video)) return;
+      const r = seekRange.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)));
+      tip.textContent = formatTime(ratio * video.duration, video.duration >= 3600);
+      tip.style.left = (ratio * 100) + '%';
+      tip.hidden = false;
+    });
+    seekRange.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+    const row = make('div', 'row');
+    const bPlay = button('▶', COPY.playPause, () => togglePlay(video));
+    const bBack15 = button('−15', COPY.back15, () => seekBy(video, -SEEK_STEP));
+    const bFwd15 = button('+15', COPY.fwd15, () => seekBy(video, SEEK_STEP));
+    const timeEl = make('span', 'time');
+    timeEl.title = COPY.jumpTo;
+    timeEl.setAttribute('role', 'button');
+    const timeIn = make('input', 'timein');
+    timeIn.type = 'text';
+    timeIn.hidden = true;
+    timeIn.setAttribute('aria-label', COPY.jumpTo);
+    const spacer = make('span', 'spacer');
+    const bVol = button('Vol', COPY.mute, () => {
       if (video.muted || video.volume === 0) applyVolume(video, video.volume || 0.5);
       else video.muted = true;
     });
@@ -758,14 +841,42 @@
     volRange.addEventListener('input', () => applyVolume(video, Number(volRange.value) / 100));
     volRange.addEventListener('change', () => volRange.blur());
     volRange.addEventListener('click', (e) => e.stopPropagation());
-    const bFile = button('.srt', COPY.loadFile, () => input.click());
-    const bBack = button('−0.5s', COPY.back, () => { source.shiftOffset(-0.5); sync(); });
-    const lbl = make('span', 'lbl');
-    const bFwd = button('+0.5s', COPY.fwd, () => { source.shiftOffset(0.5); sync(); });
-    const bUnload = button('✕', COPY.unload, () => { source.clearExternal(); sync(); });
-    bar.append(bSmaller, bBigger, bCC, bVol, volRange, bFile, bBack, lbl, bFwd, bUnload);
+    row.append(bPlay, bBack15, bFwd15, timeEl, timeIn, spacer, bVol, volRange);
+    ctl.append(seekWrap, row);
 
-    // The video goes back to the page on close, so this listener is removed in destroy().
+    // Click the time to type one: Enter jumps, Esc or blur cancels, invalid input shakes.
+    const closeTimeInput = () => {
+      if (timeIn.hidden) return;
+      timeIn.hidden = true;
+      timeIn.classList.remove('bad');
+      timeEl.hidden = false;
+      scheduleCtlHide();
+    };
+    timeEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      timeIn.value = formatTime(video.currentTime, seekable(video) && video.duration >= 3600);
+      timeEl.hidden = true;
+      timeIn.hidden = false;
+      timeIn.focus();
+      timeIn.select();
+    });
+    timeIn.addEventListener('click', (e) => e.stopPropagation());
+    timeIn.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeTimeInput(); return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const sec = parseTimeInput(timeIn.value);
+      if (!Number.isFinite(sec) || (seekable(video) && sec > video.duration)) {
+        timeIn.classList.remove('bad');
+        void timeIn.offsetWidth; // restart the shake animation
+        timeIn.classList.add('bad');
+        return;
+      }
+      seekVideo(video, sec);
+      closeTimeInput();
+    });
+    timeIn.addEventListener('blur', closeTimeInput);
+
     const syncVolume = () => {
       const silent = video.muted || video.volume === 0;
       bVol.classList.toggle('off', silent);
@@ -773,6 +884,20 @@
     };
     video.addEventListener('volumechange', syncVolume);
     syncVolume();
+
+    const syncTimeline = () => {
+      bPlay.textContent = video.paused ? '▶' : '❚❚';
+      timeEl.textContent = timeLabel(video);
+      const ok = seekable(video);
+      seekWrap.hidden = !ok;
+      if (ok) {
+        seekRange.max = String(video.duration);
+        if (!dragging) seekRange.value = String(Math.min(video.duration, video.currentTime));
+      }
+    };
+    const TIMELINE_EVENTS = ['timeupdate', 'durationchange', 'loadedmetadata', 'seeked', 'play', 'pause'];
+    for (const ev of TIMELINE_EVENTS) video.addEventListener(ev, syncTimeline);
+    syncTimeline();
 
     input.addEventListener('change', async () => {
       const file = input.files && input.files[0];
@@ -786,7 +911,7 @@
       }
     });
 
-    doc.body.append(sub, bar, input);
+    doc.body.append(sub, ctl, bar, input);
 
     function render(text) {
       span.textContent = text || '';
@@ -803,20 +928,43 @@
       render(source.text);
     }
 
-    let hideTimer = 0;
-    const showBar = () => {
-      bar.classList.add('show');
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => bar.classList.remove('show'), 2000);
+    // Toolbar: shows on mousemove, hides after 2 s idle. Mini player: hides after 2.5 s idle
+    // unless paused, hovered, or the time input has focus. Subtitles move up while it shows.
+    let barTimer = 0;
+    let ctlTimer = 0;
+    let overCtl = false;
+    const ctlPinned = () => video.paused || overCtl || doc.activeElement === timeIn;
+    const setCtl = (on) => {
+      ctl.classList.toggle('show', on);
+      doc.body.classList.toggle('ctl-on', on);
+      if (on) doc.documentElement.style.setProperty('--ctlh', ctl.offsetHeight + 'px');
     };
-    doc.addEventListener('mousemove', showBar);
+    function scheduleCtlHide() {
+      clearTimeout(ctlTimer);
+      ctlTimer = setTimeout(() => { if (!ctlPinned()) setCtl(false); }, 2500);
+    }
+    const showControls = () => {
+      bar.classList.add('show');
+      clearTimeout(barTimer);
+      barTimer = setTimeout(() => bar.classList.remove('show'), 2000);
+      setCtl(true);
+      scheduleCtlHide();
+    };
+    doc.addEventListener('mousemove', showControls);
+    ctl.addEventListener('mouseenter', () => { overCtl = true; });
+    ctl.addEventListener('mouseleave', () => { overCtl = false; scheduleCtlHide(); });
+    const onPlayState = () => { if (video.paused) setCtl(true); else showControls(); };
+    video.addEventListener('play', onPlayState);
+    video.addEventListener('pause', onPlayState);
+    if (video.paused) setCtl(true);
 
     doc.body.addEventListener('click', (e) => {
-      if (bar.contains(e.target) || e.target === input) return;
+      if (bar.contains(e.target) || ctl.contains(e.target) || e.target === input) return;
       togglePlay(video);
     });
 
     pipWin.addEventListener('keydown', (e) => {
+      if (e.target === timeIn) return; // typing a time: Enter/Esc belong to the input
       const altP = e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP';
       if (altP || e.key === 'Escape') {
         e.preventDefault();
@@ -828,6 +976,9 @@
       if (e.code === 'Space') { e.preventDefault(); togglePlay(video); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); seekBy(video, -5); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(video, 5); }
+      else if (e.code === 'KeyJ') { e.preventDefault(); seekBy(video, -SEEK_STEP); }
+      else if (e.code === 'KeyL') { e.preventDefault(); seekBy(video, SEEK_STEP); }
+      else if (e.code === 'KeyK') { e.preventDefault(); togglePlay(video); }
       else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
         const cur = video.muted ? 0 : video.volume;
@@ -840,9 +991,13 @@
     return {
       render,
       destroy() {
-        clearTimeout(hideTimer);
+        clearTimeout(barTimer);
+        clearTimeout(ctlTimer);
         settingsListeners.delete(sync);
         video.removeEventListener('volumechange', syncVolume);
+        for (const ev of TIMELINE_EVENTS) video.removeEventListener(ev, syncTimeline);
+        video.removeEventListener('play', onPlayState);
+        video.removeEventListener('pause', onPlayState);
       },
     };
   }
@@ -962,7 +1117,8 @@
     ctx.closePath();
   }
 
-  function drawSubtitle(ctx, text, W, H) {
+  // bottomInset: px kept free above the bottom edge (progress bar + time label when shown).
+  function drawSubtitle(ctx, text, W, H, bottomInset = 0) {
     const size = Math.max(8, Math.round(H * 0.055 * settings.fontScale));
     ctx.save();
     ctx.font = `bold ${size}px system-ui, sans-serif`;
@@ -971,7 +1127,7 @@
     const lines = wrapLines(ctx, text, W * 0.9);
     const lineH = Math.round(size * 1.3);
     const padX = size * 0.45;
-    let y = H * 0.93 - lines.length * lineH;
+    let y = Math.min(H * 0.93, H - bottomInset) - lines.length * lineH;
     for (const line of lines) {
       const bw = ctx.measureText(line).width + padX * 2;
       ctx.shadowColor = 'transparent';
@@ -985,6 +1141,112 @@
       y += lineH;
     }
     ctx.restore();
+  }
+
+  // ==== Timeline (time label, progress bar, media session seeking) ====
+
+  const SEEK_STEP = 15;
+  const seekable = (v) => Number.isFinite(v.duration) && v.duration > 0;
+
+  // "1:02:03", "12:30" or "90" (seconds) → seconds; NaN when invalid.
+  function parseTimeInput(str) {
+    const t = String(str).trim();
+    if (!/^\d+(:\d{1,2}){0,2}$/.test(t)) return NaN;
+    const parts = t.split(':').map(Number);
+    if (parts.length > 1 && parts.slice(1).some((n) => n >= 60)) return NaN;
+    return parts.reduce((acc, n) => acc * 60 + n, 0);
+  }
+
+  // "m:ss", or "h:mm:ss" when the video is an hour or longer.
+  function formatTime(sec, longForm) {
+    const s = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = String(s % 60).padStart(2, '0');
+    return longForm ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${h * 60 + m}:${ss}`;
+  }
+
+  function timeLabel(v) {
+    if (!seekable(v)) return formatTime(v.currentTime, false);
+    const long = v.duration >= 3600;
+    return `${formatTime(Math.min(v.currentTime, v.duration), long)} / ${formatTime(v.duration, long)}`;
+  }
+
+  function seekVideo(v, t, fast) {
+    let x = Math.max(0, Number(t) || 0);
+    if (Number.isFinite(v.duration)) x = Math.min(v.duration, x);
+    try {
+      if (fast && typeof v.fastSeek === 'function') v.fastSeek(x);
+      else v.currentTime = x;
+    } catch (_) { /* not seekable */ }
+  }
+
+  // Bersih windows show a MediaStream, which Chrome treats as live (no timeline, no seeking).
+  // The page's media session gives its PiP controls the original's position and seek actions.
+  // Only seek actions are registered; play/pause and previous/next stay the page's own.
+  function attachTimeline(video) {
+    const ms = navigator.mediaSession;
+    let positionSet = false;
+    const actions = {
+      // Always 15 s (one step size everywhere), whatever seekOffset Chrome suggests.
+      seekbackward: () => seekVideo(video, video.currentTime - SEEK_STEP),
+      seekforward: () => seekVideo(video, video.currentTime + SEEK_STEP),
+      seekto: (d) => { if (d && Number.isFinite(d.seekTime)) seekVideo(video, d.seekTime, !!d.fastSeek); },
+    };
+    const registered = [];
+    const updatePosition = () => {
+      if (!ms || typeof ms.setPositionState !== 'function' || !seekable(video)) return;
+      try {
+        ms.setPositionState({
+          duration: video.duration,
+          position: Math.min(video.duration, Math.max(0, video.currentTime)),
+          playbackRate: video.playbackRate || 1,
+        });
+        positionSet = true;
+      } catch (_) { /* invalid state mid-load */ }
+    };
+    const EVENTS = ['timeupdate', 'ratechange', 'durationchange', 'seeked', 'loadedmetadata'];
+    for (const e of EVENTS) video.addEventListener(e, updatePosition);
+    if (ms) {
+      for (const [k, fn] of Object.entries(actions)) {
+        try { ms.setActionHandler(k, fn); registered.push(k); } catch (_) { /* unsupported */ }
+      }
+    }
+    updatePosition();
+    return {
+      actions,
+      detach() {
+        for (const e of EVENTS) video.removeEventListener(e, updatePosition);
+        for (const k of registered) { try { ms.setActionHandler(k, null); } catch (_) {} }
+        if (positionSet) { try { ms.setPositionState(); } catch (_) {} }
+      },
+    };
+  }
+
+  // Bottom progress bar + time label on the canvas; returns the height it takes (0 = hidden).
+  function drawTimeline(ctx, video, W, H) {
+    if (!seekable(video)) return 0;
+    const area = Math.max(6, Math.round(H * 0.04));
+    const lineH = Math.max(2, Math.round(H / 120));
+    const marginX = Math.round(W * 0.03);
+    const trackW = W - marginX * 2;
+    const lineY = H - Math.round(area / 2) - Math.round(lineH / 2);
+    const ratio = Math.min(1, Math.max(0, video.currentTime / video.duration));
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.25)';
+    ctx.fillRect(marginX, lineY, trackW, lineH);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fillRect(marginX, lineY, Math.round(trackW * ratio), lineH);
+    const size = Math.max(8, Math.round(H * 0.04));
+    ctx.font = `600 ${size}px system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = Math.max(2, size * 0.12);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(timeLabel(video), marginX, H - area);
+    ctx.restore();
+    return area + Math.round(size * 1.4);
   }
 
   function canvasSizeFor(vw, vh) {
@@ -1023,6 +1285,12 @@
     });
     source.refresh();
 
+    // Timeline shows while paused and for 2.5 s after a seek or play/pause; hidden otherwise.
+    let activityAt = performance.now();
+    const ACTIVITY = ['seeking', 'seeked', 'play', 'pause'];
+    const onActivity = () => { activityAt = performance.now(); };
+    for (const e of ACTIVITY) video.addEventListener(e, onActivity);
+
     const draw = () => {
       fitToVideo();
       ctx.fillStyle = '#000';
@@ -1033,7 +1301,9 @@
         const dh = video.videoHeight * s;
         ctx.drawImage(video, (W - dw) / 2, (H - dh) / 2, dw, dh);
       }
-      if (settings.ccOn && source.text) drawSubtitle(ctx, source.text, W, H);
+      const showTimeline = video.paused || performance.now() - activityAt < 2500;
+      const inset = showTimeline ? drawTimeline(ctx, video, W, H) : 0;
+      if (settings.ccOn && source.text) drawSubtitle(ctx, source.text, W, H, inset);
     };
 
     let running = true;
@@ -1054,6 +1324,7 @@
         running = false;
         clearTimeout(timer);
         video.removeEventListener('resize', fitToVideo);
+        for (const e of ACTIVITY) video.removeEventListener(e, onActivity);
         source.destroy();
       },
     };
@@ -1075,9 +1346,11 @@
         end();
       },
     };
+    let timeline = null;
     function end() {
       if (ended) return;
       ended = true;
+      if (timeline) timeline.detach();
       video.removeEventListener('leavepictureinpicture', end);
       if (session === sess) session = null;
     }
@@ -1090,6 +1363,8 @@
       return;
     }
     video.addEventListener('leavepictureinpicture', end);
+    timeline = attachTimeline(video);
+    sess.seekActions = timeline.actions;
     toast(COPY.crossOrigin);
     scheduleCaptionsOn(sess);
   }
@@ -1117,22 +1392,44 @@
     proxy.srcObject = stream;
     (document.body || document.documentElement).appendChild(proxy);
 
-    const onOrigPlay = () => { proxy.play().catch(() => {}); };
-    const onOrigPause = () => { proxy.pause(); };
-    const onProxyPlay = () => { if (video.paused) video.play().catch(() => {}); };
+    // A paused MediaStream video freezes on its last frame, so the proxy is paused a moment
+    // after the original (the canvas has drawn the paused frame with the timeline by then),
+    // and briefly replayed after a seek while paused. selfSync: proxy events we caused.
+    let selfSync = false;
+    let pauseTimer = 0;
+    const pauseProxySoon = () => {
+      clearTimeout(pauseTimer);
+      pauseTimer = setTimeout(() => {
+        if (video.paused && !proxy.paused) { selfSync = true; proxy.pause(); selfSync = false; }
+      }, 150);
+    };
+    const onOrigPlay = () => { clearTimeout(pauseTimer); proxy.play().catch(() => {}); };
+    const onOrigPause = () => pauseProxySoon();
+    const onOrigSeeked = () => {
+      if (!video.paused || !proxy.paused) return;
+      selfSync = true;
+      proxy.play().catch(() => {}).finally(() => { selfSync = false; pauseProxySoon(); });
+    };
+    const onProxyPlay = () => { if (!selfSync && video.paused) video.play().catch(() => {}); };
     const onProxyPause = () => {
-      if (document.pictureInPictureElement === proxy && !video.paused) {
+      if (!selfSync && document.pictureInPictureElement === proxy && !video.paused) {
         markUserPause();
         video.pause();
       }
     };
+    // Chrome's PiP speaker button acts on the proxy (which has no audio): mirror it to the
+    // original, and the original's mute/volume back to the proxy. Compare-and-set ends loops.
+    const onProxyVolume = () => {
+      if (video.muted !== proxy.muted) video.muted = proxy.muted;
+      if (Math.abs(video.volume - proxy.volume) > 0.001) video.volume = proxy.volume;
+    };
+    const onOrigVolume = () => {
+      if (proxy.muted !== video.muted) proxy.muted = video.muted;
+      if (Math.abs(proxy.volume - video.volume) > 0.001) proxy.volume = video.volume;
+    };
     // play/pause stay with the page's own handlers (overriding them broke media keys after
     // close); the proxy's play/pause events already sync to the original.
-    const SESSION_ACTIONS = {
-      seekbackward: () => seekBy(video, -10),
-      seekforward: () => seekBy(video, 10),
-    };
-    const ms = navigator.mediaSession;
+    let timeline = null;
 
     let done = false;
     let watch = 0;
@@ -1140,13 +1437,17 @@
       if (done) return;
       done = true;
       clearInterval(watch);
+      clearTimeout(pauseTimer);
       r.stop();
+      if (timeline) timeline.detach();
       video.removeEventListener('play', onOrigPlay);
       video.removeEventListener('pause', onOrigPause);
+      video.removeEventListener('seeked', onOrigSeeked);
+      video.removeEventListener('volumechange', onOrigVolume);
+      proxy.removeEventListener('volumechange', onProxyVolume);
       proxy.removeEventListener('play', onProxyPlay);
       proxy.removeEventListener('pause', onProxyPause);
       proxy.removeEventListener('leavepictureinpicture', cleanup);
-      if (ms) for (const k of Object.keys(SESSION_ACTIONS)) { try { ms.setActionHandler(k, null); } catch (_) {} }
       for (const t of stream.getTracks()) t.stop();
       proxy.srcObject = null;
       proxy.remove();
@@ -1176,17 +1477,19 @@
     }
     if (done) { if (document.pictureInPictureElement === proxy) document.exitPictureInPicture().catch(() => {}); return; }
 
-    if (video.paused) proxy.pause();
+    if (video.paused) pauseProxySoon();
     video.addEventListener('play', onOrigPlay);
     video.addEventListener('pause', onOrigPause);
+    video.addEventListener('seeked', onOrigSeeked);
+    // The proxy starts muted (autoplay-safe) and takes the original's state once in PiP.
+    onOrigVolume();
+    video.addEventListener('volumechange', onOrigVolume);
+    proxy.addEventListener('volumechange', onProxyVolume);
     proxy.addEventListener('play', onProxyPlay);
     proxy.addEventListener('pause', onProxyPause);
     proxy.addEventListener('leavepictureinpicture', cleanup);
-    if (ms) {
-      for (const [k, fn] of Object.entries(SESSION_ACTIONS)) {
-        try { ms.setActionHandler(k, fn); } catch (_) { /* action unsupported */ }
-      }
-    }
+    timeline = attachTimeline(video);
+    sess.seekActions = timeline.actions;
     watch = setInterval(() => { if (!video.isConnected) sess.close(); }, 500);
     scheduleCaptionsOn(sess);
   }
@@ -1314,5 +1617,14 @@
     return { volume: v.volume, muted: v.muted };
   }
 
-  window.__pipSub = { toggle, debugSource, debugCanvas, stop, getVolume, setVolume };
+  // Calls the media session seek handler the open session registered (tests cannot reach
+  // Chrome's PiP buttons). Returns false when there is none.
+  function debugSeek(action, details) {
+    const fn = session && session.seekActions && session.seekActions[action];
+    if (!fn) return false;
+    fn(details || {});
+    return true;
+  }
+
+  window.__pipSub = { toggle, debugSource, debugCanvas, stop, getVolume, setVolume, debugSeek };
 })();

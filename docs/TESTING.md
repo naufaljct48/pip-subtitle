@@ -12,6 +12,8 @@ node test/e2e.cjs https://plyr.io/ 0
 # Mode B: player in a cross-origin iframe
 python -I test/serve_ext.py test/modeb 8766 &               # serves 127.0.0.1 + localhost
 node test/e2e-modeb.cjs                                     # + source resize, setVolume, CC-on (track.html), Lengkap Vol
+node test/e2e-seek.cjs                                      # v1.3 timeline: Bersih media-session seeks, progress bar,
+                                                            # mute mirror; Lengkap mini player (seek bar, J/K/L, time input)
 node test/e2e-hide.cjs                                      # site pauses on tab switch: PiP must keep playing
 #   needs the Chrome test window visible and uncovered (occluded windows count as hidden)
 # EXT_DIR=<copy of the extension> node test/e2e-hide.cjs    # run against a mutated copy to prove the test fails
@@ -54,3 +56,14 @@ leaves its caption box empty, so captions cannot be verified there.
 | Native tracks all disabled — `test/modeb/track.html` | Alt+P | `id` track set to hidden, caption text read |
 | Auto PiP after building media engagement (plyr.io, 9 sessions with playback, score 0.45, Is High = Yes) | tab switch | canvas PiP opened by Chrome's `enterpictureinpicture`, closed by Chrome on return. Same profile at score 0.05 (Is High = No): nothing — Chrome gates auto PiP on high engagement |
 | e2e-hide | — | needs the Chrome test window visible and uncovered; passed at 06:52 on v1.1, hide logic unchanged in v1.2 |
+
+### Chrome's own controls in the native PiP window (2 Nov 2026, Chrome 156)
+
+Captured the PiP window right after it opens (Chrome shows its overlay then; synthetic hover via
+SetCursorPos does not bring it back later):
+- PiP of the page's real `<video>` (what Google's PiP extension does): ±10 s, play/pause, timeline.
+- PiP of our canvas proxy (Bersih): only the site name — no play/pause, no seek, no timeline, even
+  with mediaSession seek/seekto/previoustrack/nexttrack/play/pause handlers registered before
+  opening, a silent audio track added, or the proxy made visible. Chrome treats a MediaStream
+  source as live. A `showing` text track is not drawn in native PiP either.
+=> A real mini player (timeline, jump, ±15 s, volume) is only possible in Lengkap (Document PiP).

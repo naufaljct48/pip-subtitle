@@ -20,18 +20,26 @@ Popup ekstensi juga berisi pengaturan (berlaku langsung, tanpa muat ulang halama
 - **PiP otomatis saat pindah tab** — video yang sedang main langsung masuk PiP ketika kamu pindah tab.
 - **Tampilkan subtitle** — tampilkan/sembunyikan subtitle. Bila CC di player belum aktif, ekstensi menyalakannya sekali saat PiP dibuka (YouTube, JW Player, atau track subtitle bawaan video; Bahasa Indonesia didahulukan). Ekstensi tidak pernah mematikan CC di player.
 - **Ukuran teks** — 60–200%.
-- **Volume** — volume video di tab ini (0–100%). Jendela PiP mode Bersih dari Chrome tidak punya pengatur volume, jadi atur dari sini.
+- **Volume** — volume video di tab ini (0–100%). Jendela PiP mode Bersih dari Chrome tidak punya penggeser volume, jadi atur dari sini; tombol speaker di jendela Bersih ikut membisukan/menyalakan suara video.
 
-Tombol di jendela PiP mode Lengkap:
+Di jendela PiP mode **Bersih**, waktu dan garis kemajuan muncul di bagian bawah video saat video dijeda atau sebentar sesudah kamu memutar/menjeda/menggeser. Tombol maju/mundur Chrome melompat 15 detik.
+
+Jendela PiP mode **Lengkap** punya pemutar mini di bagian bawah (muncul saat mouse bergerak, tetap tampil selama video dijeda):
+- garis waktu — klik untuk melompat, geser untuk mencari; arahkan mouse untuk melihat waktunya
+- **▶ / ❚❚** — putar/jeda; **−15 / +15** — mundur/maju 15 detik
+- waktu "12:34 / 44:58" — klik lalu ketik waktu tujuan (`1:02:03`, `12:30`, atau `90` detik), tekan Enter
+- **Vol** + penggeser — bisukan/nyalakan suara dan atur volume
+
+Tombol di atas kanan jendela Lengkap:
 - **A− / A+** — ubah ukuran huruf subtitle
 - **CC** — tampilkan/sembunyikan subtitle
-- **Vol** + penggeser — bisukan/nyalakan suara dan atur volume
 - **.srt** — muat berkas subtitle sendiri
 - **geser ±0,5 detik** — sesuaikan waktu subtitle
 
 Pintasan di jendela PiP mode Lengkap:
 - Klik / **Space** — putar/jeda
 - **←** / **→** — mundur/maju 5 detik
+- **J** / **L** — mundur/maju 15 detik; **K** — putar/jeda
 - **↑** / **↓** — volume naik/turun 10%
 - **Esc** / **Alt+P** — tutup PiP
 

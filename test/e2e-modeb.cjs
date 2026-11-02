@@ -100,7 +100,7 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     const tracksOk = tstate.inPip && tstate.modes.join(',') === 'en:disabled,id:hidden' && src === 'Teks dari track Indonesia';
     log('captions on', tracksOk ? 'OK' : 'FAIL', JSON.stringify({ ...tstate, src }));
 
-    // Lengkap toolbar volume (only when the profile is in 'full' mode): Vol + slider, ArrowUp/Down.
+    // Lengkap volume (only when the profile is in 'full' mode): Vol + slider in the bottom mini player, ArrowUp/Down.
     if (tstate.mode === 'doc') {
       const dv = await page.evaluate(async () => {
         const w = documentPictureInPicture.window;
@@ -108,17 +108,18 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
         const key = (k) => w.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
         const wait = () => new Promise((r) => setTimeout(r, 100));
         v.muted = false; v.volume = 0.5; await wait();
-        const bar = [...w.document.querySelectorAll('.bar > *')].map((n) => n.textContent || n.type);
-        const range = w.document.querySelector('.bar .vol');
+        const bar = [...w.document.querySelectorAll('.ctl .row > *')].map((n) => n.textContent || n.type);
+        const topBar = [...w.document.querySelectorAll('.bar > *')].map((n) => n.textContent);
+        const range = w.document.querySelector('.ctl .vol');
         key('ArrowUp'); await wait(); const up = v.volume;
         key('ArrowDown'); key('ArrowDown'); await wait(); const down = v.volume;
         const sliderFollows = range.value === String(Math.round(v.volume * 100));
-        [...w.document.querySelectorAll('.bar button')].find((b) => b.textContent === 'Vol').click(); await wait();
+        [...w.document.querySelectorAll('.ctl button')].find((b) => b.textContent === 'Vol').click(); await wait();
         const mutedByVol = v.muted;
-        return { bar, up, down, sliderFollows, mutedByVol, title: range.title };
+        return { bar, topBar, up, down, sliderFollows, mutedByVol, title: range.title };
       });
-      const dvOk = dv.up === 0.6 && dv.down === 0.4 && dv.sliderFollows && dv.mutedByVol && dv.bar.indexOf('Vol') === dv.bar.indexOf('CC') + 1;
-      log('toolbar volume', dvOk ? 'OK' : 'FAIL', JSON.stringify(dv));
+      const dvOk = dv.up === 0.6 && dv.down === 0.4 && dv.sliderFollows && dv.mutedByVol && dv.bar.indexOf('range') === dv.bar.indexOf('Vol') + 1 && !dv.topBar.includes('Vol');
+      log('mini player volume', dvOk ? 'OK' : 'FAIL', JSON.stringify(dv));
     }
   } catch (e) { log('ERROR', e.stack || e); } finally { await browser.close(); }
 })();

@@ -1,0 +1,14 @@
+<!doctype html><title>Seek</title><body style="margin:0;background:#000">
+<!-- Top-level player with a seekable 60 s clip (loaded as a blob: the test server has no
+     Range support) and a caption container. -->
+<div class="video-js" style="position:relative;width:880px;height:495px">
+  <video id="v" muted playsinline style="width:100%;height:100%"></video>
+  <div class="vjs-text-track-display" style="position:absolute;left:0;right:0;bottom:30px;text-align:center;color:#fff;font:24px sans-serif"><div><div class="vjs-text-track-cue"></div></div></div>
+</div>
+<script>
+const v=document.getElementById('v');
+fetch('clip.mp4').then((r)=>r.blob()).then((b)=>{ v.src=URL.createObjectURL(b); v.play(); });
+const cue=document.querySelector('.vjs-text-track-cue');
+v.addEventListener('timeupdate',()=>{ cue.textContent='Detik ke-'+Math.floor(v.currentTime); });
+</script>
+</body>

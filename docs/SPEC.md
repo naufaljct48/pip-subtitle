@@ -99,12 +99,29 @@ while a session is open (so the popup's button reaches that frame to close it).
    word-wrapped, centered near the bottom, white with dark box, same font scale setting.
 3. `canvas.captureStream(30)` → hidden muted `<video>` (`srcObject`, 1 px, appended to the
    page), `play()`, then `requestPictureInPicture()` on it.
-4. Sync: original `play`/`pause` → proxy video; proxy video `play`/`pause` (from the PiP
-   window buttons) → original. `navigator.mediaSession` gets only `seekbackward`/`seekforward`
-   (10 s) handlers, cleared on close; the page's own `play`/`pause` handlers are left alone
-   (overriding and clearing them broke e.g. YouTube media keys). `leavepictureinpicture` →
-   stop loop, remove proxy and canvas.
-5. Unreadable video (`SecurityError` from `captureStream`, or cross-origin looking `src`) →
+4. Sync: original `play` → proxy; original `pause` → proxy paused 150 ms later (a paused
+   MediaStream video freezes on its last frame, so the canvas first draws the paused frame with
+   the timeline); a seek while paused briefly replays the proxy so the frozen frame updates.
+   Proxy `play`/`pause` from the PiP window buttons → original (events we caused ourselves are
+   ignored). `leavepictureinpicture` → stop loop, remove proxy and canvas.
+5. Timeline: the proxy is a MediaStream, which Chrome treats as live (no timeline, no seek).
+   While a canvas or native session is open, `navigator.mediaSession.setPositionState`
+   mirrors the original (`duration`, `position` clamped to [0, duration], `playbackRate`) on
+   `timeupdate`/`ratechange`/`durationchange`/`seeked`/`loadedmetadata`, only for a finite
+   duration > 0; cleared with `setPositionState()` on close if it was set. Handlers:
+   `seekbackward`/`seekforward` = 15 s (`seekOffset` ignored), `seekto` (`seekTime`, honours
+   `fastSeek`); only these are registered and only these are nulled on close (the page keeps its
+   own `play`/`pause`/`previoustrack`/`nexttrack`; overriding them broke YouTube media keys).
+   `__pipSub.debugSeek(action, details)` calls the same handlers (tests).
+6. Canvas timeline overlay, only while the original is paused or for 2.5 s after a seek or a
+   play/pause: a progress line in the bottom 4 % of the frame (white 85 % on a 25 % white track,
+   ~H/120 thick, 3 % side margins) and a time label "12:34 / 44:58" (`h:mm:ss` when the video
+   is ≥ 1 h) bottom-left above it, 600 weight, H × 0.04, subtitle text shadow. Subtitles move up
+   while it shows. Not drawn for live (non-finite duration) video.
+7. Mute: Chrome's PiP speaker button acts on the proxy, which has no audio. Proxy
+   `volumechange` → original `muted`/`volume`; original `volumechange` → proxy (compare-and-set,
+   so no loops). The proxy starts muted for `play()` and takes the original's state once in PiP.
+8. Unreadable video (`SecurityError` from `captureStream`, or cross-origin looking `src`) →
    Mode A in the top frame (mode `clean`), otherwise `video.requestPictureInPicture()` on the
    original + toast "Subtitle tidak bisa ditampilkan di player ini (video lintas-domain)".
 
@@ -176,12 +193,23 @@ Never switches captions off on the page.
 - Toolbar: top-right, appears on mousemove, hides after 2 s idle; small dark pill buttons
   (`rgba(0,0,0,.6)`, white, 12 px, radius 6 px):
   `A−` `A+` (scale 0.6–2.0 step 0.1) · `CC` (toggle overlay; dimmed when off) ·
-  `Vol` (toggle mute; dimmed when muted or at 0) + a 64 px range input (0–100, step 5,
-  `accent-color: #fff`) that follows the video's `volumechange` · `.srt` (hidden file input,
-  accepts `.srt,.vtt`) · when a file is loaded: `−0.5s`, offset label, `+0.5s`, `✕` (unload
-  file).
-- Click on video = play/pause; `Space` = play/pause; `←`/`→` = −/+5 s; `↑`/`↓` = volume
-  ±10 %; `Alt+P` or `Esc` = close PiP.
+  `.srt` (hidden file input, accepts `.srt,.vtt`) · when a file is loaded: `−0.5s`, offset
+  label, `+0.5s`, `✕` (unload file).
+- Mini player: a strip across the bottom (`linear-gradient(transparent, rgba(0,0,0,.75))`),
+  a full-width seek range (`accent-color: #fff`) above one row:
+  `▶`/`❚❚` · `−15` · `+15` · time "12:34 / 44:58" · spacer · `Vol` (toggle mute; dimmed when
+  muted or at 0) · 72 px volume range (0–100, step 5) following `volumechange`. Text glyphs,
+  white, 13 px, tabular numbers, no emoji.
+  - Seek range: hovering shows a small time tooltip above the pointer; click jumps; dragging
+    scrubs (`fastSeek` while dragging when available, exact `currentTime` on `change`).
+    Hidden for live (non-finite duration) video.
+  - Clicking the time turns it into a text input prefilled with the current time; Enter
+    parses `h:mm:ss`, `m:ss` or plain seconds and jumps; Esc or blur cancels; invalid or past
+    the end → red outline + short shake, no jump. While it has focus, window shortcuts are off.
+  - Shows on mousemove, hides after 2.5 s idle; stays while paused, while the pointer is over
+    it, or while the time input has focus. Subtitles move above it while it shows.
+- Click on video = play/pause; `Space`/`K` = play/pause; `←`/`→` = −/+5 s; `J`/`L` = −/+15 s;
+  `↑`/`↓` = volume ±10 %; `Alt+P` or `Esc` = close PiP.
 - `A−`/`A+`/`CC` write `fontScale`/`ccOn` to storage (see Settings); changes made in the popup
   while the window is open re-sync the toolbar and overlay.
 
@@ -222,6 +250,9 @@ it renders with the defaults. Changes are written to storage immediately.
 - Toolbar tooltips: "Perkecil teks", "Perbesar teks", "Subtitle on/off",
   "Muat file subtitle (.srt/.vtt)", "Mundurkan subtitle 0,5 detik",
   "Majukan subtitle 0,5 detik", "Lepas file subtitle", "Volume (↑/↓)".
+- Mini player tooltips: "Putar/jeda (K)", "Mundur 15 detik (J)", "Maju 15 detik (L)",
+  "Klik untuk lompat ke waktu tertentu", "Bisukan / nyalakan suara", seek bar label
+  "Posisi video".
 - Popup: "Buka PiP", "Mode tampilan", "Bersih", "Lengkap",
   Bersih hint "Tanpa bilah judul. Subtitle digambar di video.",
   Lengkap hint "Ada tombol ukuran teks & muat .srt. Chrome menampilkan nama situs di atas.",
