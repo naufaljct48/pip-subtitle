@@ -9,7 +9,7 @@
 | 5 | v1.3: timeline (Bersih media-session seek + canvas progress, mute mirror; Lengkap mini player), 15 s steps | careful | 4 | done |
 | 6 | v1.4: English + Indonesian UI (i18n.js, lang setting, _locales for the manifest) | careful | 5 | done |
 | 7 | Open source + Chrome Web Store prep: portable tests, package.json/zip, LICENSE, CI, PRIVACY, README, store/ | careful | 6 | done |
-| 8 | v1.4.2: page placeholder over the original video during canvas/native sessions | careful | 7 | review |
+| 8 | v1.4.2: page placeholder over the original video during canvas/native sessions | careful | 7 | done |
 
 ## 1. Scaffold
 `manifest.json` (MV3, name "PiP Subtitle", version 1.0.0, description in Indonesian,
