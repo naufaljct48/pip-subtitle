@@ -1,6 +1,6 @@
 {
   "name": "pip-subtitle",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "private": true,
   "description": "Chrome extension: Picture-in-Picture that keeps the player's subtitles.",
   "license": "MIT",
@@ -10,7 +10,8 @@
     "e2e:modeb": "node test/e2e-modeb.cjs",
     "e2e:seek": "node test/e2e-seek.cjs",
     "e2e:hide": "node test/e2e-hide.cjs",
-    "fixtures": "node test/lib/env.cjs"
+    "fixtures": "node test/lib/env.cjs",
+    "e2e:reload": "node test/e2e-reload.cjs"
   },
   "devDependencies": {
     "puppeteer-core": "^25.0.0"

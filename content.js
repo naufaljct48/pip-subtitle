@@ -1593,8 +1593,15 @@
 
   // ==== Triggers ====
 
-  window.addEventListener('keydown', (e) => {
+  // After the extension is reloaded or updated, this copy keeps running in already-open tabs but
+  // can no longer reach the extension, while the popup may inject a fresh copy. The old copy then
+  // steps aside so Alt+P and auto PiP are not handled twice.
+  const orphaned = () =>
+    typeof chrome !== 'undefined' && !!chrome.runtime && !chrome.runtime.id;
+
+  window.addEventListener('keydown', function onAltP(e) {
     if (!(e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyP')) return;
+    if (orphaned() && !session) { window.removeEventListener('keydown', onAltP, true); return; }
     if (isEditableEvent(e)) return;
     // Without a candidate video, leave the key to the page and other frames.
     if (!session && !pickVideo()) return;
@@ -1628,9 +1635,12 @@
     try { p = openPip(v); } catch (err) { p = Promise.reject(err); }
     p.catch((err) => console.warn('[PiP Subtitle]', err)).finally(() => { opening = false; });
   }
+  let autoPipTimer = 0;
   function syncAutoPip() {
     const ms = navigator.mediaSession;
     if (!ms) return;
+    // Orphaned copy: stop; the fresh copy (if injected) registers its own handler.
+    if (orphaned()) { clearInterval(autoPipTimer); return; }
     const want = settings.autoPip && (!!session || !!pickVideo());
     if (want === autoPipOn) return;
     try {
@@ -1640,7 +1650,7 @@
   }
   if (window === window.top) {
     settingsListeners.add(syncAutoPip);
-    setInterval(syncAutoPip, 2000);
+    autoPipTimer = setInterval(syncAutoPip, 2000);
     syncAutoPip();
   }
 

@@ -79,7 +79,7 @@ function showMessage(key) {
 // than that video (embedded player) means another frame should be used instead. With
 // doToggle the toggle happens in this same call, while the click's activation is fresh.
 function topFrameWins(doToggle) {
-  if (typeof window.__pipSubScore !== 'function') return false;
+  if (typeof window.__pipSubScore !== 'function') return 'missing';
   const score = window.__pipSubScore();
   if (!(score > 0)) return false;
   if (score < Number.MAX_SAFE_INTEGER) {
@@ -98,7 +98,7 @@ function topFrameWins(doToggle) {
 
 // The frame "Open PiP" acts on: top frame first, else the best-scoring frame.
 // executeScript (not tabs.sendMessage) keeps the click's user activation, which PiP needs.
-async function pickFrame(doToggle) {
+async function pickFrame(doToggle, injected = false) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id == null) return null;
   const [top] = await chrome.scripting.executeScript({
@@ -108,10 +108,23 @@ async function pickFrame(doToggle) {
   });
   if (top && top.result === true) return { tabId: tab.id, frameId: 0 };
 
+  // -1 = our content script is not in that frame.
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id, allFrames: true },
-    func: () => (typeof window.__pipSubScore === 'function' ? window.__pipSubScore() : 0),
+    func: () => (typeof window.__pipSubScore === 'function' ? window.__pipSubScore() : -1),
   });
+  // Tabs opened before the extension was installed, reloaded or updated have no content script
+  // until they are refreshed: add it now and look again, once.
+  const missing = (results || []).filter((r) => r.result === -1).map((r) => r.frameId);
+  if (missing.length && !injected) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id, frameIds: missing },
+        files: ['i18n.js', 'content.js'],
+      });
+      return pickFrame(doToggle, true);
+    } catch (_) { /* frames we may not script (chrome://, store pages): fall through */ }
+  }
   let best = null;
   for (const r of results || []) {
     const score = Number(r.result);

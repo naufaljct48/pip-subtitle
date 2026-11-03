@@ -76,3 +76,10 @@ SetCursorPos does not bring it back later):
   opening, a silent audio track added, or the proxy made visible. Chrome treats a MediaStream
   source as live. A `showing` text track is not drawn in native PiP either.
 => A real mini player (timeline, jump, ±15 s, volume) is only possible in Lengkap (Document PiP).
+
+### v1.4.3 (3 Nov 2026) — `npm run e2e:reload`
+
+Extension reloaded/updated while a video tab is open (uninstall + install the same unpacked dir:
+the tab keeps an orphaned content script). Expect: popup "Open PiP" injects a fresh copy and opens
+PiP without a page refresh; Alt+P closes and reopens exactly once. Fails on v1.4.2 (popup says no
+video; Alt+P handled by the orphan), passes on v1.4.3.

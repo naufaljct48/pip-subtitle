@@ -11,3 +11,4 @@ test/v13-*
 test/v14-*
 store/tools/store-profile/
 store/tools/raw/
+test/e2e-profile*/
